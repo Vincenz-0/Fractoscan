@@ -148,22 +148,17 @@ body {
   gap: 0.5rem;
 }
 
-/* --- MODIFICATION: Added CSS filters to change logo color --- */
-/* --- MODIFICATION: New filter to blend background and recolor logo --- */
+
 .logo-img {
   height: 6.5rem;
   width: auto;
   border-radius: 8px; /* You might want to remove this if the background is now "gone" */
   
-  /* 
-    This filter chain aims to:
-    1. Change the light blue logo to the site's primary blue color.
-    2. Make the dark background of the image blend in with the dark theme.
-  */
+ 
   
 }
 
-/* Removed the hover effect as it may not look good with this new filter */
+
 
 
 .landing-nav-links {
@@ -324,13 +319,15 @@ body {
   align-items: center;
 }
 
+
 .xray-image {
   width: 80%;
   height: 80%;
-  background: url('https://picsum.photos/seed/xray/300/180.jpg') center/cover;
+  background: url('/assets/front.jpg') center/cover; /* Use an absolute path */
   filter: invert(0.9) contrast(1.2);
   border-radius: 4px;
 }
+
 
 .fracture-indicator {
   position: absolute;
@@ -338,8 +335,8 @@ body {
   height: 30px;
   border: 2px solid var(--accent-color);
   border-radius: 50%;
-  top: 40%;
-  left: 60%;
+  top: 50%;
+  left: 45%;
   animation: pulse 2s infinite;
 }
 
@@ -477,11 +474,11 @@ body {
 }
 
 .comparison-image.normal {
-  background: url('https://picsum.photos/seed/normal-bone/200/200.jpg') center/cover;
+  background: url('/assets/normal.png') center/cover;
 }
 
 .comparison-image.fractured {
-  background: url('https://picsum.photos/seed/fractured-bone/200/200.jpg') center/cover;
+  background: url('/assets/potential.png') center/cover;
 }
 
 .comparison-image::after {
@@ -643,19 +640,19 @@ body {
 }
 
 .workflow-node.login {
-  background: url('https://picsum.photos/seed/login/80/80.jpg') center/cover;
+  background: url('/assets/create.jpg') center/cover;
 }
 
 .workflow-node.upload {
-  background: url('https://picsum.photos/seed/upload/80/80.jpg') center/cover;
+  background: url('/assets/up.jpg') center/cover;
 }
 
 .workflow-node.analyze {
-  background: url('https://picsum.photos/seed/analyze/80/80.jpg') center/cover;
+  background: url('/assets/ai.jpg') center/cover;
 }
 
 .workflow-node.results {
-  background: url('https://picsum.photos/seed/results/80/80.jpg') center/cover;
+  background: url('/assets/analysis.jpg') center/cover;
 }
 
 .workflow-arrow {
