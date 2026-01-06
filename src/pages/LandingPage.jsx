@@ -55,8 +55,7 @@ function LandingPage() {
       <header className={`landing-nav ${scrolled ? "scrolled" : ""}`}>
         <div className="logo">
           <img 
-            src="https://z-cdn-media.chatglm.cn/files/16ae0350-3651-4ba4-ba6b-b1324d6dfeb8.jpg?auth_key=1865360872-446fbe6e38d34d489ab3d52f42903980-0-e5cd2e216e20b32e7e30cacdda8cbb69" 
-            alt="FractoScan Logo" 
+            src="assets/logo.png"
             className="logo-img"
           />
           

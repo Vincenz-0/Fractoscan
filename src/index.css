@@ -154,7 +154,6 @@ body {
   width: auto;
   border-radius: 8px; /* You might want to remove this if the background is now "gone" */
   
- 
   
 }
 
@@ -962,4 +961,412 @@ body {
   .testimonials-grid {
     grid-template-columns: 1fr;
   }
+}
+/* ===== AUTH PAGE STYLES ===== */
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&display=swap');
+
+:root {
+  --primary-color: #4f46e5;
+  --primary-hover: #4338ca;
+  --bg-dark: #0f172a;
+  --bg-darker: #020617;
+  --bg-card: #1e293b;
+  --border-color: #334155;
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --error-color: #ef4444;
+  --success-color: #10b981;
+}
+
+body {
+  margin: 0;
+  font-family: 'Orbitron', sans-serif;
+  background-color: var(--bg-dark);
+  color: var(--text-primary);
+}
+
+.auth-page {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  padding: 2rem;
+  background: linear-gradient(135deg, var(--bg-dark) 0%, var(--bg-darker) 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+/* --- NEW: Animated Background Grid --- */
+.auth-page::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: 
+    linear-gradient(rgba(79, 70, 229, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(79, 70, 229, 0.1) 1px, transparent 1px);
+  background-size: 40px 40px;
+  animation: grid-move 15s linear infinite;
+}
+
+@keyframes grid-move {
+  0% { transform: translate(0, 0); }
+  100% { transform: translate(40px, 40px); }
+}
+
+
+.auth-card {
+  width: 100%;
+  max-width: 420px;
+  background: rgba(30, 41, 59, 0.8); /* More transparent for glassmorphism */
+  backdrop-filter: blur(12px);
+  border-radius: 20px;
+  border: 1px solid rgba(79, 70, 229, 0.3);
+  padding: 2.5rem;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(79, 70, 229, 0.1);
+  text-align: center;
+  position: relative;
+  z-index: 1;
+}
+
+.auth-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+/* --- NEW: CSS-based Icon --- */
+.auth-icon {
+  width: 70px;
+  height: 70px;
+  margin-bottom: 1rem;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.auth-icon::before {
+  content: '';
+  position: absolute;
+  width: 50px;
+  height: 10px;
+  background: linear-gradient(90deg, var(--primary-color), var(--success-color));
+  border-radius: 5px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.auth-icon::after {
+  content: '';
+  position: absolute;
+  width: 10px;
+  height: 50px;
+  background: linear-gradient(180deg, var(--primary-color), var(--success-color));
+  border-radius: 5px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 20px rgba(79, 70, 229, 0.5);
+}
+
+
+.auth-title {
+  font-size: 2.2rem;
+  font-weight: 800;
+  margin: 0;
+  background: linear-gradient(135deg, var(--primary-color), var(--success-color));
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.subtitle {
+  color: var(--text-secondary);
+  margin-bottom: 2.5rem;
+  font-size: 0.95rem;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  text-align: left;
+}
+
+.field span {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.field input {
+  width: 100%;
+  padding: 0.9rem 1rem;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  background-color: rgba(2, 6, 23, 0.6);
+  color: var(--text-primary);
+  font-family: 'Orbitron', sans-serif;
+  font-size: 1rem;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.field input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
+}
+
+.alert {
+  padding: 0.8rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.alert.error {
+  background-color: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: var(--error-color);
+}
+
+.auth-btn {
+  padding: 0.9rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-top: 1rem;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.auth-btn:hover {
+  transform: translateY(-2px);
+}
+
+.auth-footer {
+  margin-top: 2rem;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.auth-footer p {
+  margin: 0 0 1rem 0;
+}
+
+.auth-footer a {
+  color: var(--primary-color);
+  text-decoration: none;
+  font-weight: 600;
+  transition: color 0.3s ease;
+}
+
+.auth-footer a:hover {
+  color: var(--primary-hover);
+  text-decoration: underline;
+}
+
+.back-link {
+  display: inline-block;
+  margin-top: 1rem;
+}
+
+.hint {
+  margin-top: 2rem;
+  font-size: 0.75rem;
+  color: #6b7280;
+  font-style: italic;
+}
+
+/* Button Styles (can be imported from a global file) */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 10px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-decoration: none;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn.primary {
+  background: linear-gradient(135deg, var(--primary-color), #6366f1);
+  color: white;
+  box-shadow: 0 4px 14px 0 rgba(79, 70, 229, 0.4);
+}
+
+.btn.primary:hover {
+  background: linear-gradient(135deg, var(--primary-hover), #4f46e5);
+  box-shadow: 0 6px 20px 0 rgba(79, 70, 229, 0.5);
+}
+
+/* Responsive Design */
+@media (max-width: 480px) {
+  .auth-card {
+    padding: 1.5rem;
+  }
+  .auth-title {
+    font-size: 1.8rem;
+  }
+}
+/* ===== Add these new styles to your index.css ===== */
+
+/* --- Updated Logo with Blended Background --- */
+.auth-logo-img {
+  height: 4rem; /* Adjust size as needed */
+  width: auto;
+  margin-bottom: 1rem;
+  /* This filter chain inverts the dark background to light and recolors the logo */
+  filter: brightness(0) invert(1) hue-rotate(215deg) saturate(3);
+  transition: var(--transition);
+}
+
+/* --- Separator --- */
+.auth-separator {
+  display: flex;
+  align-items: center;
+  margin: 1.5rem 0;
+  gap: 1rem;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.auth-separator::before,
+.auth-separator::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background-color: var(--border-color);
+}
+
+/* --- Google Button --- */
+.google-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 0.8rem 1rem;
+  background-color: #fff;
+  color: #3c4043;
+  border-radius: 10px;
+  border: 1px solid #dadce0;
+  font-family: 'Orbitron', sans-serif; /* Using site's font for consistency */
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.google-btn:hover {
+  background-color: #f8f9fa;
+  box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15);
+}
+
+.google-logo {
+  width: 18px;
+  height: 18px;
+}
+
+/* --- Adjustments for existing auth styles --- */
+/* Ensure there's no extra margin at the bottom of the form */
+.auth-form {
+  margin-bottom: 0;
+}
+
+/* ===== Replace old styles with these NEW, more robust styles ===== */
+
+/* --- Main Skull Container --- */
+.auth-logo-skull {
+  width: 100px;
+  height: 100px;
+  position: relative;
+  margin-bottom: 1.5rem;
+  animation: skull-float 4s ease-in-out infinite;
+}
+/* --- Skull Head (Cranium) --- */
+.skull-head {
+  width: 80px;
+  height: 80px;
+  /* --- MODIFICATION: Uses primary blue with transparency to blend --- */
+  background-color: #e3e3efcc; /* Primary color, semi-transparent */
+  border: 1px solid rgba(79, 70, 229, 0.4); /* Matching primary blue border */
+  border-radius: 50% 50% 45% 45%;
+  position: relative;
+  box-shadow: 0 0 20px rgba(216, 215, 232, 0.5); /* Outer glow */
+}
+
+/* --- Skull Jaw (Mandible) --- */
+.skull-jaw {
+  width: 60px;
+  height: 25px;
+  /* --- MODIFICATION: Uses primary blue with transparency to blend --- */
+   background-color: #e3e3efcc;  /* Primary color, semi-transparent */
+  border: 1px solid rgba(79, 70, 229, 0.4); /* Matching primary blue border */
+  border-radius: 0 0 50% 50%;
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/* --- Eye Sockets --- */
+.skull-eye {
+  width: 20px;
+  height: 20px;
+  background-color: #020617; /* Even darker for more contrast */
+  border-radius: 50%;
+  position: absolute;
+  top: 28px;
+  overflow: hidden;
+}
+
+.skull-eye:first-child {
+  left: 18px;
+}
+
+.skull-eye:last-child {
+  right: 18px;
+}
+
+/* --- The Blue Fire --- */
+.skull-fire {
+  width: 12px;
+  height: 30px;
+  background: linear-gradient(to top, #4A90E2, #87CEEB); /* Sky-blue gradient */
+  border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+  position: absolute;
+  bottom: -15px;
+  left: 50%;
+  transform: translateX(-50%);
+  animation: fire-flicker 0.2s ease-in-out infinite alternate;
+  box-shadow: 0 0 15px #4A90E2; /* Sky-blue glow */
+}
+
+/* --- Nose Cavity --- */
+
+/* --- Animations --- */
+@keyframes skull-float {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50% { transform: translateY(-5px) rotate(2deg); }
+}
+
+@keyframes fire-flicker {
+  0% { transform: translateX(-50%) scaleY(1); opacity: 1; }
+  100% { transform: translateX(-50%) scaleY(1.2); opacity: 0.8; }
 }

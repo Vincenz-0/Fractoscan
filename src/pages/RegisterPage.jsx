@@ -1,50 +1,65 @@
-// src/pages/LoginPage.jsx
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../AuthContext";
 
-function LoginPage() {
+function RegisterPage() {
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const { login } = useAuth(); // ✅ ONLY SOURCE OF login
+  const { register } = useAuth();
   const navigate = useNavigate();
 
   async function handleSubmit(e) {
     e.preventDefault();
+
+    // ✅ PREVENT DOUBLE SUBMISSION (CRITICAL FIX)
+    if (isLoading) return;
+
     setError("");
     setIsLoading(true);
 
-    if (!email || !password) {
-      setError("Please enter both email and password.");
+    if (!name || !email || !password || !confirmPassword) {
+      setError("Please fill in all fields.");
+      setIsLoading(false);
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
       setIsLoading(false);
       return;
     }
 
     try {
-      const result = await login(email, password);
+      const result = await register(name, email, password);
+      console.log("Register result:", result);  // Temporary debug log
 
-      if (result.success) {
-        navigate("/dashboard");
+     if (result.success) {
+  navigate("/login");
+
       } else {
-        setError(result.message || "Invalid email or password.");
+        setError(result.message);
       }
     } catch (err) {
-      setError("Server error. Please try again.");
+      setError("Server error. Please try again later.");
     } finally {
       setIsLoading(false);
     }
   }
 
-  function handleGoogleLogin() {
-    setError("Google login not implemented yet.");
+  // ❌ Disabled until real Google OAuth is implemented
+  function handleGoogleSignUp() {
+    setError("Google sign-up not implemented yet.");
   }
 
   return (
     <div className="auth-page">
       <div className="auth-card">
+        {/* Skull with Fire Logo */}
         <div className="auth-header">
           <div className="auth-logo-skull">
             <div className="skull-head">
@@ -58,10 +73,23 @@ function LoginPage() {
         </div>
 
         <p className="subtitle">
-          Sign in to your account to continue
+          Create your account to get started
         </p>
 
+        {/* Registration Form */}
         <form onSubmit={handleSubmit} className="auth-form">
+          <label className="field">
+            <span>Full Name</span>
+            <input
+              type="text"
+              placeholder="John Doe"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              disabled={isLoading}
+            />
+          </label>
+
           <label className="field">
             <span>Email</span>
             <input
@@ -78,9 +106,21 @@ function LoginPage() {
             <span>Password</span>
             <input
               type="password"
-              placeholder="••••••••"
+              placeholder="•••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              required
+              disabled={isLoading}
+            />
+          </label>
+
+          <label className="field">
+            <span>Confirm Password</span>
+            <input
+              type="password"
+              placeholder="•••••••"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
               required
               disabled={isLoading}
             />
@@ -93,7 +133,7 @@ function LoginPage() {
             className="btn primary auth-btn"
             disabled={isLoading}
           >
-            {isLoading ? "Signing In..." : "Login"}
+            {isLoading ? "Registering..." : "Register"}
           </button>
         </form>
 
@@ -101,13 +141,13 @@ function LoginPage() {
           <span>OR</span>
         </div>
 
-        <button className="btn google-btn" onClick={handleGoogleLogin}>
+        <button className="btn google-btn" onClick={handleGoogleSignUp}>
           Continue with Google
         </button>
 
         <div className="auth-footer">
           <p>
-            Don't have an account? <Link to="/register">Register here</Link>
+            Already have an account? <Link to="/login">Login here</Link>
           </p>
           <Link to="/" className="text-link back-link">
             ← Back to Home
@@ -118,4 +158,4 @@ function LoginPage() {
   );
 }
 
-export default LoginPage;
+export default RegisterPage;
