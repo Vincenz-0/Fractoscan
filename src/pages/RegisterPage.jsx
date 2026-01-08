@@ -6,6 +6,8 @@ function RegisterPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [role, setRole] = useState("user");
+
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -35,7 +37,8 @@ function RegisterPage() {
     }
 
     try {
-      const result = await register(name, email, password);
+      const result = await register(name, email, password, role);
+
       console.log("Register result:", result);  // Temporary debug log
 
      if (result.success) {
@@ -100,6 +103,17 @@ function RegisterPage() {
               required
               disabled={isLoading}
             />
+          </label>
+          <label className="field">
+                <span>Account Type</span>
+                <select
+                    value={role}
+                      onChange={(e) => setRole(e.target.value)}
+                      disabled={isLoading}
+                >
+                <option value="user">Patient / User</option>
+                <option value="doctor">Doctor / Radiologist</option>
+                </select>
           </label>
 
           <label className="field">

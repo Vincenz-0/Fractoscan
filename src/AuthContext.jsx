@@ -18,7 +18,7 @@ export function AuthProvider({ children }) {
     }
 
     axios
-      .get(`${API_BASE}/user`, {
+      .get(`${API_BASE}/me`, {
         headers: { "x-auth-token": token }
       })
       .then(res => setUser(res.data))
@@ -45,7 +45,7 @@ export function AuthProvider({ children }) {
 
       // Fetch user details
       try {
-        const userRes = await axios.get(`${API_BASE}/user`, {
+        const userRes = await axios.get(`${API_BASE}/me`, {
           headers: { "x-auth-token": res.data.token }
         });
         console.log("User fetch response (login):", userRes.data);  // Temporary debug log
@@ -68,12 +68,13 @@ export function AuthProvider({ children }) {
   }
 
   // REGISTER (UPDATED: Succeed even if /user fetch fails, fetch later via useEffect)
-  async function register(name, email, password) {
+  async function register(name, email, password,role) {
     try {
       const res = await axios.post(`${API_BASE}/register`, {
         name,
         email,
-        password
+        password,
+        role
       });
 
       console.log("Register response:", res.data);  // Temporary debug log
@@ -92,7 +93,7 @@ export function AuthProvider({ children }) {
 
       // Fetch user details
       try {
-        const userRes = await axios.get(`${API_BASE}/user`, {
+        const userRes = await axios.get(`${API_BASE}/me`, {
           headers: { "x-auth-token": token }
         });
         console.log("User fetch response:", userRes.data);  // Temporary debug log

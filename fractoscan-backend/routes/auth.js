@@ -37,7 +37,8 @@ router.post(
       return res.status(400).json({ msg: errors.array()[0].msg });
     }
 
-    const { name, email, password } = req.body;
+    const { name, email, password, role } = req.body;
+    
 
     try {
       let user = await User.findOne({ email });
@@ -46,12 +47,16 @@ router.post(
       }
 
       const hashedPassword = await bcrypt.hash(password, 10);
+      const allowedRoles = ["user", "doctor"];
+      const userRole = allowedRoles.includes(role) ? role : "user";
 
       user = new User({
-        name,
-        email,
-        password: hashedPassword
-      });
+                        name,
+                        email,
+                        password: hashedPassword,
+                        role: userRole
+                      });
+
 
       await user.save();
 
@@ -90,15 +95,11 @@ router.post("/login", async (req, res) => {
 
     // 3. Generate JWT
     const token = jwt.sign(
-      {
-        user: {
-          id: user.id,
-          role: user.role
-        }
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: "1h" }
-    );
+                          {user: { id: user.id, role: user.role } },
+                          process.env.JWT_SECRET,
+                          { expiresIn: "1h" }
+                          );
+
 
     res.json({ token });
 
