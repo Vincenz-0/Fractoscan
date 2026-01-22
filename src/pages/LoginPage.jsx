@@ -9,7 +9,7 @@ function LoginPage() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const { login } = useAuth(); // ✅ ONLY SOURCE OF login
+  const { login, user } = useAuth(); // ✅ ONLY SOURCE OF login
   const navigate = useNavigate();
 
   async function handleSubmit(e) {
@@ -27,7 +27,14 @@ function LoginPage() {
       const result = await login(email, password);
 
       if (result.success) {
-        navigate("/dashboard");
+        // Redirect based on user role
+        setTimeout(() => {
+          if (user?.role === "doctor" || user?.role === "admin") {
+            navigate("/doctor-dashboard");
+          } else {
+            navigate("/dashboard");
+          }
+        }, 100);
       } else {
         setError(result.message || "Invalid email or password.");
       }

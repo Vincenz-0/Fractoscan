@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import ResultCard from "./ResultCard";
 
-const API_URL = "http://localhost:8000/api/predict"; // change to your backend
+const API_URL = "http://localhost:5001/api/predict"; // Backend proxy to ML server
 
 function XrayUpload() {
   const [file, setFile] = useState(null);
@@ -48,18 +48,22 @@ function XrayUpload() {
       });
 
       if (!response.ok) {
-        throw new Error("Server error. Please try again.");
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to process X-ray");
       }
 
       const data = await response.json();
+      
+      // Handle the response from ML model
       setResult({
         label: data.prediction || "Unknown",
-        confidence:
-          typeof data.confidence === "number" ? data.confidence : null,
+        confidence: typeof data.confidence === "number" ? data.confidence : null,
+        hasFracture: data.has_fracture || false,
+        detections: data.detections || []
       });
     } catch (err) {
-      console.error(err);
-      setError(err.message || "Something went wrong.");
+      console.error("Error:", err);
+      setError(err.message || "Failed to analyze X-ray. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -74,14 +78,14 @@ function XrayUpload() {
 
   return (
     <section className="card">
-      <h2>Upload X-ray</h2>
+      <h2>🩻 Upload X-ray</h2>
       <p className="subtitle">
-        Upload a bone X-ray image to check for possible fractures.
+        Upload a bone X-ray image to check for possible fractures using AI.
       </p>
 
       <form className="upload-form" onSubmit={handleSubmit}>
         <label className="file-input-label">
-          <span>Select X-ray Image</span>
+          <span>📁 Select X-ray Image</span>
           <input
             type="file"
             accept="image/*"
@@ -92,7 +96,7 @@ function XrayUpload() {
 
         {file && (
           <p className="file-name">
-            Selected: <strong>{file.name}</strong>
+            ✓ Selected: <strong>{file.name}</strong>
           </p>
         )}
 
@@ -108,21 +112,21 @@ function XrayUpload() {
 
         <div className="button-row">
           <button type="submit" className="btn primary" disabled={loading}>
-            {loading ? "Analyzing..." : "Analyze X-ray"}
+            {loading ? "🔄 Analyzing..." : "▶️ Analyze X-ray"}
           </button>
           <button
             type="button"
             className="btn secondary"
             onClick={handleClear}
           >
-            Clear
+            🔄 Clear
           </button>
         </div>
       </form>
 
-      {error && <div className="alert error">{error}</div>}
+      {error && <div className="alert error">⚠️ {error}</div>}
 
-      {result && <ResultCard result={result} />}
+      {result && <ResultCard result={result} previewUrl={previewUrl} />}
     </section>
   );
 }
