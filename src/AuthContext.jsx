@@ -43,20 +43,12 @@ export function AuthProvider({ children }) {
 
       localStorage.setItem("token", res.data.token);
 
-      // Fetch user details
-      try {
-        const userRes = await axios.get(`${API_BASE}/me`, {
-          headers: { "x-auth-token": res.data.token }
-        });
-        console.log("User fetch response (login):", userRes.data);  // Temporary debug log
-        setUser(userRes.data);
+      if (res.data?.user) {
+        setUser(res.data.user);
         return { success: true };
-      } catch (userErr) {
-        console.error("User fetch error details (login):", userErr.response?.status, userErr.response?.data);  // Temporary debug log
-        // Temporary workaround: Succeed anyway, user data will be fetched later via useEffect
-        console.warn("User data fetch failed during login, but proceeding");
-        return { success: true };  // Navigate to dashboard; user will be fetched on refresh
       }
+
+      return { success: true };
 
     } catch (err) {
       console.error("Login error:", err.response?.status, err.response?.data);  // Temporary debug log
@@ -91,20 +83,12 @@ export function AuthProvider({ children }) {
 
       localStorage.setItem("token", token);
 
-      // Fetch user details
-      try {
-        const userRes = await axios.get(`${API_BASE}/me`, {
-          headers: { "x-auth-token": token }
-        });
-        console.log("User fetch response:", userRes.data);  // Temporary debug log
-        setUser(userRes.data);
+      if (res.data?.user) {
+        setUser(res.data.user);
         return { success: true };
-      } catch (userErr) {
-        console.error("User fetch error details:", userErr.response?.status, userErr.response?.data);  // Temporary debug log
-        // Temporary workaround: Succeed anyway, user data will be fetched later via useEffect
-        console.warn("User data fetch failed, but proceeding with registration");
-        return { success: true };  // Navigate to dashboard; user will be fetched on refresh
       }
+
+      return { success: true };
 
     } catch (err) {
       console.error("Register error:", err);  // Temporary debug log
@@ -115,13 +99,43 @@ export function AuthProvider({ children }) {
     }
   }
 
+  async function updateProfile({ name, email, password }) {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        return { success: false, message: "Not authenticated" };
+      }
+
+      const payload = {
+        name,
+        email
+      };
+
+      if (password && password.trim()) {
+        payload.password = password.trim();
+      }
+
+      const res = await axios.put(`${API_BASE}/me`, payload, {
+        headers: { "x-auth-token": token }
+      });
+
+      setUser(res.data);
+      return { success: true, user: res.data };
+    } catch (err) {
+      return {
+        success: false,
+        message: err.response?.data?.msg || "Failed to update profile"
+      };
+    }
+  }
+
   function logout() {
     localStorage.removeItem("token");
     setUser(null);
   }
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout }}>
+    <AuthContext.Provider value={{ user, login, register, updateProfile, logout }}>
       {!loading && children}
     </AuthContext.Provider>
   );

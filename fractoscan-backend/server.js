@@ -1,5 +1,6 @@
 console.log("STEP 3: server.js loaded");
-require("dotenv").config();
+const path = require("path");
+require("dotenv").config({ path: path.join(__dirname, ".env") });
 const connectDB = require("./config/db");
 
 connectDB();
@@ -8,7 +9,7 @@ const cors = require("cors");
 const axios = require("axios");
 const FormData = require("form-data");
 const fs = require("fs");
-const path = require("path");
+// const path = require("path");
 const multer = require("multer");
 
 const app = express();
@@ -20,7 +21,13 @@ app.use(express.json());
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 app.use(cors());
 
+app.use((req, res, next) => {
+  console.log(`[Backend] ${req.method} ${req.url}`);
+  next();
+});
+
 app.use("/api/auth", require("./routes/auth"));
+app.use("/api/scans", require("./routes/scans"));
 
 app.get("/", (req, res) => {
   console.log("STEP 3: ROOT HIT");

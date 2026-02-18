@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from "react";
 
-function ResultCard({ result, previewUrl }) {
+function ResultCard({ result, previewUrl, inline = false }) {
   const canvasRef = useRef(null);
 
   const isFractured =
@@ -57,8 +57,12 @@ function ResultCard({ result, previewUrl }) {
     img.src = previewUrl;
   }, [previewUrl, hasDetections, result.detections]);
 
+  const rootClassName = inline
+    ? `result-inline ${isFractured ? "fractured" : "normal"}`
+    : `result-card ${isFractured ? "fractured" : "normal"}`;
+
   return (
-    <div className={`result-card ${isFractured ? "fractured" : "normal"}`}>
+    <div className={rootClassName}>
       <h3>✨ AI Assessment Report</h3>
 
       <div className="result-content">

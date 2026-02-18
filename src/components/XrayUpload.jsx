@@ -1,16 +1,27 @@
 import React, { useState } from "react";
 import ResultCard from "./ResultCard";
+import axios from "axios";
 
 const API_URL = "http://localhost:5001/api/predict"; // Backend proxy to ML server
+const SCANS_API_URL = "http://127.0.0.1:5001/api/scans";
 
-function XrayUpload() {
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
+    reader.onerror = () => reject(new Error("Failed to read image"));
+    reader.readAsDataURL(file);
+  });
+}
+
+function XrayUpload({ onAnalysisComplete }) {
   const [file, setFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState("");
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  function handleFileChange(e) {
+  async function handleFileChange(e) {
     const selected = e.target.files[0];
     if (!selected) return;
 
@@ -21,10 +32,18 @@ function XrayUpload() {
       return;
     }
 
-    setError("");
-    setFile(selected);
-    setPreviewUrl(URL.createObjectURL(selected));
-    setResult(null);
+    try {
+      const dataUrl = await readFileAsDataUrl(selected);
+      setError("");
+      setFile(selected);
+      setPreviewUrl(dataUrl);
+      setResult(null);
+    } catch {
+      setError("Could not read this image. Please try another file.");
+      setFile(null);
+      setPreviewUrl("");
+      setResult(null);
+    }
   }
 
   async function handleSubmit(e) {
@@ -53,14 +72,43 @@ function XrayUpload() {
       }
 
       const data = await response.json();
-      
+
       // Handle the response from ML model
-      setResult({
+      const parsedResult = {
         label: data.prediction || "Unknown",
         confidence: typeof data.confidence === "number" ? data.confidence : null,
         hasFracture: data.has_fracture || false,
         detections: data.detections || []
-      });
+      };
+
+      setResult(parsedResult);
+      if (typeof onAnalysisComplete === "function") {
+        onAnalysisComplete({
+          ...parsedResult,
+          fileName: file?.name || "Unknown file",
+          imageData: previewUrl || ""
+        });
+      }
+
+      try {
+        const token = localStorage.getItem("token");
+        if (token) {
+          await axios.post(
+            SCANS_API_URL,
+            {
+              fileName: file?.name || "",
+              imageData: previewUrl || "",
+              label: parsedResult.label,
+              hasFracture: parsedResult.hasFracture,
+              confidence: parsedResult.confidence,
+              detections: parsedResult.detections || []
+            },
+            { headers: { "x-auth-token": token } }
+          );
+        }
+      } catch (saveErr) {
+        console.error("Failed to save scan:", saveErr);
+      }
     } catch (err) {
       console.error("Error:", err);
       setError(err.message || "Failed to analyze X-ray. Please try again.");
@@ -102,11 +150,15 @@ function XrayUpload() {
 
         {previewUrl && (
           <div className="preview-container">
-            <img
-              src={previewUrl}
-              alt="X-ray preview"
-              className="preview-image"
-            />
+            {result ? (
+              <ResultCard result={result} previewUrl={previewUrl} inline />
+            ) : (
+              <img
+                src={previewUrl}
+                alt="X-ray preview"
+                className="preview-image"
+              />
+            )}
           </div>
         )}
 
@@ -126,7 +178,7 @@ function XrayUpload() {
 
       {error && <div className="alert error">⚠️ {error}</div>}
 
-      {result && <ResultCard result={result} previewUrl={previewUrl} />}
+      {/* Result is rendered inside the preview area to avoid extra scrolling. */}
     </section>
   );
 }

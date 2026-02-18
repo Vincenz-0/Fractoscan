@@ -24,6 +24,44 @@ router.get("/me", auth, async (req, res) => {
   }
 });
 
+router.put("/me", auth, async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+    const updates = {};
+
+    if (typeof name === "string" && name.trim()) {
+      updates.name = name.trim();
+    }
+
+    if (typeof email === "string" && email.trim()) {
+      const normalizedEmail = email.trim().toLowerCase();
+      const existingUser = await User.findOne({
+        email: normalizedEmail,
+        _id: { $ne: req.user.id }
+      });
+
+      if (existingUser) {
+        return res.status(400).json({ msg: "Email already in use" });
+      }
+
+      updates.email = normalizedEmail;
+    }
+
+    if (typeof password === "string" && password.trim()) {
+      if (password.trim().length < 6) {
+        return res.status(400).json({ msg: "Password must be 6+ chars" });
+      }
+      updates.password = await bcrypt.hash(password.trim(), 10);
+    }
+
+    const user = await User.findByIdAndUpdate(req.user.id, { $set: updates }, { new: true }).select("-password");
+    res.json(user);
+  } catch (err) {
+    console.error("❌ Update user error:", err.message);
+    res.status(500).json({ msg: "Server error" });
+  }
+});
+
 // STEP D: Register route
 router.post(
   "/register",
@@ -62,11 +100,19 @@ router.post(
 
       const token = jwt.sign(
         { user: { id: user.id, role: user.role } },
-        "secret",
+        process.env.JWT_SECRET,
         { expiresIn: "1h" }
       );
 
-      res.json({ token });
+      res.json({
+        token,
+        user: {
+          _id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role
+        }
+      });
     } catch (err) {
       res.status(500).json({ msg: "Server error" });
     }
@@ -101,7 +147,15 @@ router.post("/login", async (req, res) => {
                           );
 
 
-    res.json({ token });
+    res.json({
+      token,
+      user: {
+        _id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role
+      }
+    });
 
   } catch (err) {
     console.error("❌ Login error:", err.message);
