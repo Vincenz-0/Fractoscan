@@ -2,9 +2,11 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useAuth } from "../AuthContext";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import { buildMedicalReport, formatMedicalReportText } from "../utils/medicalReport";
 
 const SCANS_API_URL = "http://127.0.0.1:5001/api/scans";
 const PREDICT_API_URL = "http://localhost:5001/api/predict";
+const MESSAGES_API_URL = "http://127.0.0.1:5001/api/messages";
 
 function getDoctorStatus(scan) {
   if (scan?.doctorStatus) {
@@ -83,6 +85,16 @@ function DoctorDashboard() {
   const [xrayPreview, setXrayPreview] = useState("");
   const [analysisPreview, setAnalysisPreview] = useState(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisReport, setAnalysisReport] = useState(null);
+  const [analysisReportGenerated, setAnalysisReportGenerated] = useState(false);
+  const [messageConversations, setMessageConversations] = useState([]);
+  const [messageConversationsLoading, setMessageConversationsLoading] = useState(false);
+  const [activePatientId, setActivePatientId] = useState("");
+  const [activeConversationMessages, setActiveConversationMessages] = useState([]);
+  const [activeConversationLoading, setActiveConversationLoading] = useState(false);
+  const [messageDraft, setMessageDraft] = useState("");
+  const [messageSending, setMessageSending] = useState(false);
+  const [messageError, setMessageError] = useState("");
   const analysisCanvasRef = useRef(null);
 
   const fetchPatientScansById = useCallback(async (patientId) => {
@@ -118,7 +130,7 @@ function DoctorDashboard() {
         return;
       }
 
-      const res = await axios.get(`${SCANS_API_URL}/doctor/all`, {
+      const res = await axios.get(`${SCANS_API_URL}/doctor/reviewed`, {
         headers: { "x-auth-token": token }
       });
 
@@ -147,6 +159,105 @@ function DoctorDashboard() {
       clearInterval(interval);
     };
   }, [refreshScans]);
+
+  const fetchMessageConversations = useCallback(async (options = {}) => {
+    if (!options.silent) {
+      setMessageConversationsLoading(true);
+    }
+
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setMessageConversations([]);
+        setActivePatientId("");
+        return;
+      }
+
+      const res = await axios.get(`${MESSAGES_API_URL}/doctor/conversations`, {
+        headers: { "x-auth-token": token }
+      });
+
+      const conversations = Array.isArray(res.data?.conversations) ? res.data.conversations : [];
+      setMessageConversations(conversations);
+      setActivePatientId((current) => {
+        if (current && conversations.some((conversation) => conversation.patientId === current)) {
+          return current;
+        }
+        return conversations[0]?.patientId || "";
+      });
+      setMessageError("");
+    } catch (error) {
+      if (!options.silent) {
+        setMessageConversations([]);
+        setActivePatientId("");
+      }
+      setMessageError(error?.response?.data?.error || "Could not load patient messages");
+    } finally {
+      if (!options.silent) {
+        setMessageConversationsLoading(false);
+      }
+    }
+  }, []);
+
+  const fetchConversationMessages = useCallback(async (patientId, options = {}) => {
+    const query = typeof patientId === "string" ? patientId.trim() : "";
+    if (!query) {
+      setActiveConversationMessages([]);
+      return;
+    }
+
+    if (!options.silent) {
+      setActiveConversationLoading(true);
+    }
+
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setActiveConversationMessages([]);
+        return;
+      }
+
+      const res = await axios.get(`${MESSAGES_API_URL}/conversation`, {
+        params: { patientId: query },
+        headers: { "x-auth-token": token }
+      });
+
+      setActiveConversationMessages(Array.isArray(res.data?.messages) ? res.data.messages : []);
+      setMessageError("");
+    } catch (error) {
+      if (!options.silent) {
+        setActiveConversationMessages([]);
+      }
+      setMessageError(error?.response?.data?.error || "Could not load this conversation");
+    } finally {
+      if (!options.silent) {
+        setActiveConversationLoading(false);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchMessageConversations();
+    const interval = setInterval(() => {
+      fetchMessageConversations({ silent: true });
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [fetchMessageConversations]);
+
+  useEffect(() => {
+    if (!activePatientId) {
+      setActiveConversationMessages([]);
+      return;
+    }
+
+    fetchConversationMessages(activePatientId);
+    const interval = setInterval(() => {
+      fetchConversationMessages(activePatientId, { silent: true });
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [activePatientId, fetchConversationMessages]);
 
   useEffect(() => {
     const detections = Array.isArray(analysisPreview?.detections)
@@ -244,6 +355,12 @@ function DoctorDashboard() {
     };
   }, [filteredScans, searchId]);
 
+  const activePatientConversation = useMemo(
+    () =>
+      messageConversations.find((conversation) => conversation.patientId === activePatientId) || null,
+    [activePatientId, messageConversations]
+  );
+
   async function handleSearchSubmit() {
     const query = searchInput.trim();
     setSearchId(query);
@@ -272,15 +389,66 @@ function DoctorDashboard() {
     setXrayPreview("");
   }
 
+  function withMedicalReport(scan, predictData = null) {
+    const hasFracture =
+      typeof scan?.hasFracture === "boolean"
+        ? scan.hasFracture
+        : Boolean(predictData?.has_fracture);
+    const confidence =
+      typeof scan?.confidence === "number"
+        ? scan.confidence
+        : typeof predictData?.confidence === "number"
+          ? predictData.confidence
+          : null;
+    const detections =
+      Array.isArray(scan?.detections) && scan.detections.length > 0
+        ? scan.detections
+        : Array.isArray(predictData?.detections)
+          ? predictData.detections
+          : [];
+    const patientId = scan?.patientId || predictData?.medicalReport?.patientId || "";
+    const patientName = scan?.patientName || predictData?.medicalReport?.patientName || "";
+    const patientEmail = scan?.patientEmail || predictData?.medicalReport?.patientEmail || "";
+    const hasFormalStoredReport =
+      scan?.medicalReport &&
+      typeof scan.medicalReport === "object" &&
+      typeof scan.medicalReport.reportTitle === "string";
+    const hasFormalPredictedReport =
+      predictData?.medicalReport &&
+      typeof predictData.medicalReport === "object" &&
+      typeof predictData.medicalReport.reportTitle === "string";
+
+    const medicalReport = hasFormalStoredReport
+      ? scan.medicalReport
+      : hasFormalPredictedReport
+        ? predictData.medicalReport
+        : null;
+
+    return {
+      ...scan,
+      label: scan?.label || predictData?.prediction || "",
+      hasFracture,
+      confidence,
+      detections,
+      patientId,
+      patientName,
+      patientEmail,
+      medicalReport
+    };
+  }
+
   async function handleOpenAnalysis(scan) {
+    setAnalysisReport(null);
+    setAnalysisReportGenerated(false);
+
     const detections = Array.isArray(scan?.detections) ? scan.detections : [];
     if (detections.length > 0) {
-      setAnalysisPreview(scan);
+      setAnalysisPreview(withMedicalReport(scan));
       return;
     }
 
     if (!scan?.imageData) {
-      setAnalysisPreview(scan);
+      setAnalysisPreview(withMedicalReport(scan));
       return;
     }
 
@@ -294,6 +462,15 @@ function DoctorDashboard() {
         imageBlob,
         scan.fileName || `scan-${scan._id || scan.id || Date.now()}.png`
       );
+      if (scan?.patientId) {
+        formData.append("patientId", scan.patientId);
+      }
+      if (scan?.patientName) {
+        formData.append("patientName", scan.patientName);
+      }
+      if (scan?.patientEmail) {
+        formData.append("patientEmail", scan.patientEmail);
+      }
 
       const predictResponse = await fetch(PREDICT_API_URL, {
         method: "POST",
@@ -301,29 +478,15 @@ function DoctorDashboard() {
       });
 
       if (!predictResponse.ok) {
-        setAnalysisPreview(scan);
+        setAnalysisPreview(withMedicalReport(scan));
         return;
       }
 
       const predictData = await predictResponse.json();
-      setAnalysisPreview({
-        ...scan,
-        label: scan.label || predictData.prediction || "",
-        hasFracture:
-          typeof scan.hasFracture === "boolean"
-            ? scan.hasFracture
-            : Boolean(predictData.has_fracture),
-        confidence:
-          typeof scan.confidence === "number"
-            ? scan.confidence
-            : typeof predictData.confidence === "number"
-              ? predictData.confidence
-              : null,
-        detections: Array.isArray(predictData.detections) ? predictData.detections : []
-      });
+      setAnalysisPreview(withMedicalReport(scan, predictData));
     } catch (error) {
       console.error("Analyze result preview error:", error);
-      setAnalysisPreview(scan);
+      setAnalysisPreview(withMedicalReport(scan));
     } finally {
       setAnalysisLoading(false);
     }
@@ -331,23 +494,133 @@ function DoctorDashboard() {
 
   function handleCloseAnalysis() {
     setAnalysisPreview(null);
+    setAnalysisReport(null);
+    setAnalysisReportGenerated(false);
+  }
+
+  function createAnalysisReport() {
+    if (!analysisPreview) {
+      return null;
+    }
+
+    const hasFormalReportShape =
+      analysisPreview?.medicalReport &&
+      typeof analysisPreview.medicalReport === "object" &&
+      typeof analysisPreview.medicalReport.reportTitle === "string";
+
+    if (hasFormalReportShape) {
+      return analysisPreview.medicalReport;
+    }
+
+    return buildMedicalReport({
+      hasFracture: analysisPreview?.hasFracture,
+      confidence: analysisPreview?.confidence,
+      detections: analysisPreview?.detections,
+      fileName: analysisPreview?.fileName,
+      patientId: analysisPreview?.patientId,
+      patientName: analysisPreview?.patientName,
+      patientEmail: analysisPreview?.patientEmail,
+      generatedAt: analysisPreview?.createdAt || new Date().toISOString()
+    });
+  }
+
+  function handleGenerateAnalysisReport() {
+    const report = createAnalysisReport();
+    if (!report) {
+      return;
+    }
+
+    setAnalysisReport(report);
+    setAnalysisReportGenerated(true);
+  }
+
+  function handleDownloadAnalysisReport() {
+    if (!analysisPreview || !analysisReportGenerated || !analysisReport) {
+      return;
+    }
+
+    const reportContent =
+      typeof analysisReport?.reportText === "string" && analysisReport.reportText.trim()
+        ? analysisReport.reportText
+        : formatMedicalReportText(analysisReport);
+
+    const blob = new Blob([reportContent], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const baseFileName = (analysisPreview?.fileName || "scan")
+      .replace(/\.[^/.]+$/, "")
+      .replace(/[^a-z0-9-_]+/gi, "-")
+      .toLowerCase();
+    const safePatientId = (analysisReport?.patientId || "na")
+      .replace(/[^a-z0-9-_]+/gi, "-")
+      .toLowerCase();
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    link.href = url;
+    link.download = `${safePatientId}-${baseFileName || "scan"}-medical-report-${timestamp}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  async function handleSendMessage(e) {
+    e.preventDefault();
+    const text = messageDraft.trim();
+    if (!activePatientId || !text) {
+      return;
+    }
+
+    setMessageSending(true);
+    setMessageError("");
+
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        throw new Error("Not authenticated");
+      }
+
+      await axios.post(
+        `${MESSAGES_API_URL}/send`,
+        {
+          patientId: activePatientId,
+          text
+        },
+        { headers: { "x-auth-token": token } }
+      );
+
+      setMessageDraft("");
+      await fetchConversationMessages(activePatientId, { silent: true });
+      await fetchMessageConversations({ silent: true });
+    } catch (error) {
+      setMessageError(error?.response?.data?.error || error?.message || "Could not send message");
+    } finally {
+      setMessageSending(false);
+    }
   }
 
   return (
     <div className="dashboard-page">
       <header className="dashboard-header">
-        <div>
+        <div className="dashboard-header-main">
+          <p className="dashboard-kicker">Clinical Console</p>
           <h1>👨‍⚕️ FractoScan Doctor Dashboard</h1>
           <p className="subtitle">
             Review and manage X-ray analyses with advanced AI insights.
           </p>
+          <div className="dashboard-header-tags">
+            <span className="dashboard-tag">Review Workflow</span>
+            <span className="dashboard-tag">AI + Doctor Oversight</span>
+            <span className="dashboard-tag">Live Patient Search</span>
+          </div>
         </div>
-        <div className="user-info">
-          <span className="user-role">🩺 Dr. {user?.name}</span>
-          <span className="user-email">📧 {user?.email}</span>
-          <button className="btn secondary small" onClick={handleLogout}>
-            Logout
-          </button>
+        <div className="dashboard-user-panel">
+          <div className="user-info">
+            <span className="user-role">🩺 Dr. {user?.name}</span>
+            <span className="user-email">📧 {user?.email}</span>
+            <button className="btn secondary small" onClick={handleLogout}>
+              Logout
+            </button>
+          </div>
         </div>
       </header>
 
@@ -392,6 +665,96 @@ function DoctorDashboard() {
           )}
         </section>
 
+        <section className="card doctor-chat-card">
+          <h2>💬 Patient Communication</h2>
+          <p className="subtitle">
+            Review and respond when patients select you and send a message.
+          </p>
+
+          {messageError && <p className="nearby-doctors-error">{messageError}</p>}
+
+          {messageConversationsLoading ? (
+            <p className="nearby-doctors-info">Loading patient conversations...</p>
+          ) : messageConversations.length === 0 ? (
+            <p className="nearby-doctors-empty">No patient conversations yet.</p>
+          ) : (
+            <div className="doctor-chat-layout">
+              <aside className="doctor-chat-thread-list">
+                {messageConversations.map((conversation) => {
+                  const isActive = conversation.patientId === activePatientId;
+                  return (
+                    <button
+                      key={conversation.patientId}
+                      type="button"
+                      className={`doctor-chat-thread-btn ${isActive ? "active" : ""}`}
+                      onClick={() => setActivePatientId(conversation.patientId)}
+                    >
+                      <span className="doctor-chat-thread-name">
+                        {conversation.patientName || conversation.patientId}
+                      </span>
+                      <span className="doctor-chat-thread-preview">{conversation.lastMessage || "No message"}</span>
+                      <span className="doctor-chat-thread-time">
+                        {formatDateTime(conversation.lastMessageAt)}
+                      </span>
+                    </button>
+                  );
+                })}
+              </aside>
+
+              <div className="doctor-chat-window">
+                {activePatientConversation && (
+                  <p className="nearby-location-note">
+                    Chatting with {activePatientConversation.patientName || activePatientConversation.patientId}
+                  </p>
+                )}
+
+                <div className="chat-message-list">
+                  {activeConversationLoading ? (
+                    <p className="chat-message-empty">Loading conversation...</p>
+                  ) : activeConversationMessages.length === 0 ? (
+                    <p className="chat-message-empty">No messages yet in this conversation.</p>
+                  ) : (
+                    activeConversationMessages.map((message) => {
+                      const isMine = message.senderRole === "doctor";
+                      return (
+                        <div
+                          key={message._id || `${message.createdAt}-${message.text}`}
+                          className={`chat-message-bubble ${isMine ? "mine" : "theirs"}`}
+                        >
+                          <p>{message.text}</p>
+                          <span className="chat-message-meta">
+                            {isMine ? "You" : (activePatientConversation?.patientName || "Patient")} •{" "}
+                            {formatDateTime(message.createdAt)}
+                          </span>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                <form className="chat-compose-form" onSubmit={handleSendMessage}>
+                  <input
+                    className="chat-compose-input"
+                    type="text"
+                    maxLength={2000}
+                    placeholder="Reply to patient..."
+                    value={messageDraft}
+                    onChange={(e) => setMessageDraft(e.target.value)}
+                    disabled={!activePatientId}
+                  />
+                  <button
+                    className="btn primary"
+                    type="submit"
+                    disabled={messageSending || !activePatientId || !messageDraft.trim()}
+                  >
+                    {messageSending ? "Sending..." : "Send Reply"}
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
+        </section>
+
         <section className="stats-row">
           <div className="stat-card">
             <h3>📁 Total Analyses</h3>
@@ -411,7 +774,7 @@ function DoctorDashboard() {
         </section>
 
         <section className="scans-section">
-          <h2>📊 Recent Patient Scans</h2>
+          <h2>📊 Your Recent Patient Scans</h2>
           <div className="scans-table">
             <table>
               <thead>
@@ -546,6 +909,72 @@ function DoctorDashboard() {
                 <span className="analysis-value">{formatDateTime(analysisPreview.createdAt)}</span>
               </div>
             </div>
+            <div className="report-gate">
+              <div>
+                <p className="report-gate-title">Medical Report</p>
+                <p className="report-gate-subtitle">
+                  Generate a formal report for this analyzed scan.
+                </p>
+              </div>
+              <div className="report-actions">
+                {!analysisReportGenerated ? (
+                  <button
+                    type="button"
+                    className="btn primary generate-report-btn"
+                    onClick={handleGenerateAnalysisReport}
+                  >
+                    Generate Medical Report
+                  </button>
+                ) : (
+                  <>
+                    <span className="report-ready-pill">Report Generated</span>
+                    <button
+                      type="button"
+                      className="btn secondary small"
+                      onClick={handleDownloadAnalysisReport}
+                    >
+                      Download Report
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {analysisReportGenerated && analysisReport && (
+              <div className="analysis-report report-document">
+                <h4>Preliminary Radiology Report</h4>
+                <div className="report-meta-grid">
+                  <div className="report-meta-item">
+                    <span className="report-heading">Report ID</span>
+                    <p>{analysisReport.reportId || "N/A"}</p>
+                  </div>
+                  <div className="report-meta-item">
+                    <span className="report-heading">Patient ID</span>
+                    <p>{analysisReport.patientId || analysisPreview.patientId || "N/A"}</p>
+                  </div>
+                  <div className="report-meta-item">
+                    <span className="report-heading">Patient Name</span>
+                    <p>{analysisReport.patientName || analysisPreview.patientName || "N/A"}</p>
+                  </div>
+                  <div className="report-meta-item">
+                    <span className="report-heading">Generated At</span>
+                    <p>{analysisReport.generatedAt || "N/A"}</p>
+                  </div>
+                </div>
+                <p className="report-summary">{analysisReport.summary}</p>
+                <p>
+                  <strong>Impression:</strong> {analysisReport.impression}
+                </p>
+                <div className="report-block">
+                  <span className="report-heading">Recommendations</span>
+                  <ul className="report-list">
+                    {(analysisReport.recommendations || []).map((recommendation, index) => (
+                      <li key={`analysis-recommendation-${index}`}>{recommendation}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -11,6 +11,7 @@ const FormData = require("form-data");
 const fs = require("fs");
 // const path = require("path");
 const multer = require("multer");
+const { buildMedicalReport } = require("./utils/medicalReport");
 
 const app = express();
 
@@ -28,6 +29,9 @@ app.use((req, res, next) => {
 
 app.use("/api/auth", require("./routes/auth"));
 app.use("/api/scans", require("./routes/scans"));
+app.use("/api/nearby-doctors", require("./routes/nearbyDoctors"));
+app.use("/api/doctors", require("./routes/doctors"));
+app.use("/api/messages", require("./routes/messages"));
 
 app.get("/", (req, res) => {
   console.log("STEP 3: ROOT HIT");
@@ -61,8 +65,25 @@ app.post("/api/predict", upload.single("file"), async (req, res) => {
       timeout: 60000
     });
 
-    console.log("[Backend] ML response received:", mlResponse.data);
-    res.json(mlResponse.data);
+    const medicalReport = buildMedicalReport({
+      prediction: mlResponse?.data?.prediction,
+      hasFracture: Boolean(mlResponse?.data?.has_fracture),
+      confidence: mlResponse?.data?.confidence,
+      detections: mlResponse?.data?.detections,
+      fileName: req.file?.originalname,
+      analyzedAt: new Date().toISOString(),
+      patientId: typeof req.body?.patientId === "string" ? req.body.patientId : "",
+      patientName: typeof req.body?.patientName === "string" ? req.body.patientName : "",
+      patientEmail: typeof req.body?.patientEmail === "string" ? req.body.patientEmail : ""
+    });
+
+    const responsePayload = {
+      ...mlResponse.data,
+      medicalReport
+    };
+
+    console.log("[Backend] ML response received:", responsePayload);
+    res.json(responsePayload);
   } catch (error) {
     console.error("[Backend] Prediction error:", error.message);
     console.error("[Backend] Error code:", error.code);

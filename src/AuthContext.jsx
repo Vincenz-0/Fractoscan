@@ -26,7 +26,7 @@ export function AuthProvider({ children }) {
       .finally(() => setLoading(false));
   }, []);
 
-  // LOGIN (UPDATED WITH LOGGING)
+  // LOGIN
   async function login(email, password) {
     try {
       const res = await axios.post(`${API_BASE}/login`, {
@@ -34,10 +34,7 @@ export function AuthProvider({ children }) {
         password
       });
 
-      console.log("Login response:", res.data);  // Temporary debug log
-
       if (!res.data?.token) {
-        console.log("No token in login response");  // Temporary debug log
         return { success: false, message: "Invalid credentials" };
       }
 
@@ -45,13 +42,12 @@ export function AuthProvider({ children }) {
 
       if (res.data?.user) {
         setUser(res.data.user);
-        return { success: true };
+        return { success: true, user: res.data.user };
       }
 
       return { success: true };
 
     } catch (err) {
-      console.error("Login error:", err.response?.status, err.response?.data);  // Temporary debug log
       return {
         success: false,
         message: err.response?.data?.msg || "Login failed"
@@ -59,7 +55,7 @@ export function AuthProvider({ children }) {
     }
   }
 
-  // REGISTER (UPDATED: Succeed even if /user fetch fails, fetch later via useEffect)
+  // REGISTER
   async function register(name, email, password,role) {
     try {
       const res = await axios.post(`${API_BASE}/register`, {
@@ -69,12 +65,9 @@ export function AuthProvider({ children }) {
         role
       });
 
-      console.log("Register response:", res.data);  // Temporary debug log
-
       // Check for token (adjust key if needed, e.g., res.data.accessToken)
       const token = res.data?.token || res.data?.accessToken;
       if (!token) {
-        console.log("No token in response");  // Temporary debug log
         return {
           success: false,
           message: res.data?.msg || "Registration failed (no token returned)"
@@ -85,13 +78,12 @@ export function AuthProvider({ children }) {
 
       if (res.data?.user) {
         setUser(res.data.user);
-        return { success: true };
+        return { success: true, user: res.data.user };
       }
 
       return { success: true };
 
     } catch (err) {
-      console.error("Register error:", err);  // Temporary debug log
       return {
         success: false,
         message: err.response?.data?.msg || "Registration failed"

@@ -1,0 +1,225 @@
+const DISCLAIMER =
+  "This is an AI-assisted preliminary report and does not replace clinical diagnosis. Final interpretation must be made by a licensed radiologist/physician.";
+const FACILITY_NAME = "FractoScan Digital Radiology AI Unit";
+const STUDY_NAME = "Skeletal X-ray Fracture Screening";
+const TECHNIQUE =
+  "Single uploaded radiographic image analyzed using computer-aided fracture detection (YOLO-based model).";
+
+function normalizeConfidence(confidence) {
+  if (typeof confidence !== "number" || Number.isNaN(confidence)) {
+    return null;
+  }
+
+  if (confidence >= 0 && confidence <= 1) {
+    return confidence;
+  }
+
+  if (confidence > 1 && confidence <= 100) {
+    return confidence / 100;
+  }
+
+  return null;
+}
+
+function toConfidenceText(normalizedConfidence) {
+  if (normalizedConfidence === null) {
+    return "Not available";
+  }
+  if (normalizedConfidence >= 0.9) {
+    return "Very high";
+  }
+  if (normalizedConfidence >= 0.75) {
+    return "High";
+  }
+  if (normalizedConfidence >= 0.6) {
+    return "Moderate";
+  }
+  return "Limited";
+}
+
+function formatPercent(normalizedConfidence) {
+  if (normalizedConfidence === null) {
+    return "N/A";
+  }
+  return `${(normalizedConfidence * 100).toFixed(1)}%`;
+}
+
+function normalizeText(value, fallback = "N/A") {
+  if (typeof value !== "string") {
+    return fallback;
+  }
+  const trimmed = value.trim();
+  return trimmed || fallback;
+}
+
+function normalizeDetections(detections) {
+  if (!Array.isArray(detections)) {
+    return [];
+  }
+
+  return detections
+    .map((detection) => ({
+      x1: Number(detection?.x1),
+      y1: Number(detection?.y1),
+      x2: Number(detection?.x2),
+      y2: Number(detection?.y2),
+      confidence: normalizeConfidence(detection?.confidence)
+    }))
+    .filter((detection) =>
+      [detection.x1, detection.y1, detection.x2, detection.y2].every((value) =>
+        Number.isFinite(value)
+      )
+    );
+}
+
+function resolveGeneratedAt(value) {
+  const parsed = new Date(value);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString();
+  }
+  return new Date().toISOString();
+}
+
+function buildReportId(generatedAt) {
+  const stamp = generatedAt.replace(/[-:.TZ]/g, "").slice(0, 14);
+  const suffix = Math.random().toString(36).slice(2, 8).toUpperCase();
+  return `FSR-${stamp}-${suffix}`;
+}
+
+function formatDetectionLine(detection, index) {
+  const coords = `(${Math.round(detection.x1)}, ${Math.round(detection.y1)}) to (${Math.round(
+    detection.x2
+  )}, ${Math.round(detection.y2)})`;
+  const confidence = formatPercent(detection.confidence);
+  return `Focal suspicious region ${index + 1} at ${coords}; model confidence ${confidence}.`;
+}
+
+function formatMedicalReportText(report = {}) {
+  const findings = Array.isArray(report.findings) ? report.findings : [];
+  const recommendations = Array.isArray(report.recommendations) ? report.recommendations : [];
+  const findingsLines = findings.map((line, index) => `${index + 1}. ${line}`).join("\n");
+  const recommendationLines = recommendations
+    .map((line, index) => `${index + 1}. ${line}`)
+    .join("\n");
+
+  return [
+    "PRELIMINARY RADIOLOGY REPORT (AI-ASSISTED)",
+    "=========================================",
+    `Facility: ${report.facilityName || FACILITY_NAME}`,
+    `Report ID: ${report.reportId || "N/A"}`,
+    `Generated At: ${report.generatedAt || "N/A"}`,
+    "",
+    "PATIENT INFORMATION",
+    `Patient ID: ${report.patientId || "N/A"}`,
+    `Patient Name: ${report.patientName || "N/A"}`,
+    `Patient Email: ${report.patientEmail || "N/A"}`,
+    "",
+    "EXAMINATION DETAILS",
+    `Study: ${report.studyName || STUDY_NAME}`,
+    `Image File: ${report.fileName || "N/A"}`,
+    `Technique: ${report.technique || TECHNIQUE}`,
+    "",
+    "AI SUMMARY",
+    `Outcome: ${report.outcome || "N/A"}`,
+    `Confidence: ${report.confidencePercent || "N/A"} (${report.confidenceLevel || "N/A"})`,
+    `Clinical Summary: ${report.summary || "N/A"}`,
+    "",
+    "FINDINGS",
+    findingsLines || "1. None.",
+    "",
+    "IMPRESSION",
+    report.impression || "N/A",
+    "",
+    "RECOMMENDATIONS",
+    recommendationLines || "1. None.",
+    "",
+    "DISCLAIMER",
+    report.disclaimer || DISCLAIMER
+  ].join("\n");
+}
+
+function buildMedicalReport(payload = {}) {
+  const hasFracture = Boolean(payload.hasFracture);
+  const normalizedConfidence = normalizeConfidence(payload.confidence);
+  const detections = normalizeDetections(payload.detections);
+  const confidencePercent = formatPercent(normalizedConfidence);
+  const confidenceLevel = toConfidenceText(normalizedConfidence);
+  const fileName = normalizeText(payload.fileName, "Unknown image");
+  const generatedAt = resolveGeneratedAt(payload.analyzedAt);
+
+  const patientId = normalizeText(payload.patientId);
+  const patientName = normalizeText(payload.patientName);
+  const patientEmail = normalizeText(payload.patientEmail);
+
+  const findings = [];
+  if (hasFracture) {
+    findings.push(
+      `AI screening demonstrates fracture-suspicious abnormality in the submitted radiograph (${confidencePercent} confidence).`
+    );
+    findings.push(
+      detections.length > 0
+        ? `${detections.length} region(s) of interest were localized by the model.`
+        : "No explicit bounding localization was produced despite positive classification."
+    );
+    detections.slice(0, 3).forEach((detection, index) => {
+      findings.push(formatDetectionLine(detection, index));
+    });
+  } else {
+    findings.push(
+      `No fracture-specific radiographic pattern detected by AI (${confidencePercent} confidence).`
+    );
+    findings.push("No fracture localization boxes generated by the model.");
+  }
+
+  const summary = hasFracture
+    ? "AI output is positive for fracture-suspicious changes."
+    : "AI output is negative for fracture-suspicious changes.";
+
+  const impression = hasFracture
+    ? "Preliminary positive fracture screen on AI analysis. Correlate with examination and formal radiology read."
+    : "Preliminary negative fracture screen on AI analysis. If symptoms persist, further imaging/clinical review is advised.";
+
+  const recommendations = hasFracture
+    ? [
+        "Urgent clinician/radiologist confirmation is recommended.",
+        "Manage as suspected fracture until medically ruled out.",
+        "Consider additional radiographic views or cross-sectional imaging if clinically warranted."
+      ]
+    : [
+        "Correlate with physical examination and injury mechanism.",
+        "If high clinical suspicion remains, repeat imaging or advanced imaging is advised.",
+        "Follow institutional trauma follow-up protocol."
+      ];
+
+  const report = {
+    reportId: buildReportId(generatedAt),
+    reportTitle: "Preliminary Radiology Report (AI-Assisted)",
+    facilityName: FACILITY_NAME,
+    generatedAt,
+    patientId,
+    patientName,
+    patientEmail,
+    studyName: STUDY_NAME,
+    fileName,
+    technique: TECHNIQUE,
+    outcome: hasFracture ? "Fracture Detected" : "No Fracture Detected",
+    confidencePercent,
+    confidenceLevel,
+    summary,
+    findings,
+    impression,
+    recommendations,
+    disclaimer: DISCLAIMER
+  };
+
+  return {
+    ...report,
+    reportText: formatMedicalReportText(report)
+  };
+}
+
+module.exports = {
+  buildMedicalReport,
+  formatMedicalReportText,
+  normalizeConfidence
+};

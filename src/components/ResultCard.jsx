@@ -1,7 +1,10 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { buildMedicalReport, formatMedicalReportText } from "../utils/medicalReport";
 
 function ResultCard({ result, previewUrl, inline = false }) {
   const canvasRef = useRef(null);
+  const [reportGenerated, setReportGenerated] = useState(false);
+  const [generatedReport, setGeneratedReport] = useState(null);
 
   const isFractured =
     result.label && result.label.toLowerCase().includes("fract");
@@ -12,6 +15,70 @@ function ResultCard({ result, previewUrl, inline = false }) {
       : null;
 
   const hasDetections = result.detections && result.detections.length > 0;
+  const hasFracture =
+    typeof result?.hasFracture === "boolean" ? result.hasFracture : isFractured;
+
+  useEffect(() => {
+    setReportGenerated(false);
+    setGeneratedReport(null);
+  }, [result]);
+
+  function createMedicalReport() {
+    const hasFormalReportShape =
+      result?.medicalReport &&
+      typeof result.medicalReport === "object" &&
+      typeof result.medicalReport.reportTitle === "string";
+
+    if (hasFormalReportShape) {
+      return result.medicalReport;
+    }
+
+    return buildMedicalReport({
+      hasFracture,
+      confidence: result?.confidence,
+      detections: result?.detections,
+      fileName: result?.fileName,
+      patientId: result?.patientId,
+      patientName: result?.patientName,
+      patientEmail: result?.patientEmail,
+      generatedAt: result?.medicalReport?.generatedAt || new Date().toISOString()
+    });
+  }
+
+  function handleGenerateReport() {
+    const report = createMedicalReport();
+    setGeneratedReport(report);
+    setReportGenerated(true);
+  }
+
+  function handleDownloadReport() {
+    if (!reportGenerated || !generatedReport) {
+      return;
+    }
+
+    const reportContent =
+      typeof generatedReport?.reportText === "string" && generatedReport.reportText.trim()
+        ? generatedReport.reportText
+        : formatMedicalReportText(generatedReport);
+
+    const blob = new Blob([reportContent], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const safeFileName = (result?.fileName || "xray")
+      .replace(/\.[^/.]+$/, "")
+      .replace(/[^a-z0-9-_]+/gi, "-")
+      .toLowerCase();
+    const safePatientId = (generatedReport?.patientId || "na")
+      .replace(/[^a-z0-9-_]+/gi, "-")
+      .toLowerCase();
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    link.href = url;
+    link.download = `${safePatientId}-${safeFileName || "xray"}-medical-report-${timestamp}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
 
   // Draw bounding boxes on the image
   useEffect(() => {
@@ -36,7 +103,10 @@ function ResultCard({ result, previewUrl, inline = false }) {
         const y1 = detection.y1;
         const x2 = detection.x2;
         const y2 = detection.y2;
-        const confidence = (detection.confidence * 100).toFixed(1);
+        const confidence =
+          typeof detection.confidence === "number"
+            ? (detection.confidence * 100).toFixed(1)
+            : "N/A";
 
         // Draw red rectangle
         ctx.strokeStyle = "#ff6b6b";
@@ -63,7 +133,7 @@ function ResultCard({ result, previewUrl, inline = false }) {
 
   return (
     <div className={rootClassName}>
-      <h3>✨ AI Assessment Report</h3>
+      <h3>📋 Preliminary Radiology Report</h3>
 
       <div className="result-content">
         <div className="result-item">
@@ -144,6 +214,85 @@ function ResultCard({ result, previewUrl, inline = false }) {
           </div>
         )}
       </div>
+
+      <div className="report-gate">
+        <div>
+          <p className="report-gate-title">Medical Report</p>
+          <p className="report-gate-subtitle">
+            Generate a formal AI-assisted radiology report for this analysis.
+          </p>
+        </div>
+        <div className="report-actions">
+          {!reportGenerated ? (
+            <button type="button" className="btn primary generate-report-btn" onClick={handleGenerateReport}>
+              Generate Medical Report
+            </button>
+          ) : (
+            <>
+              <span className="report-ready-pill">Report Generated</span>
+              <button type="button" className="btn secondary small" onClick={handleDownloadReport}>
+                Download Report
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {reportGenerated && generatedReport && (
+        <div className="result-item medical-report-panel report-document">
+          <span className="result-label">🧾 Preliminary Radiology Report</span>
+          <div className="report-meta-grid">
+            <div className="report-meta-item">
+              <span className="report-heading">Report ID</span>
+              <p>{generatedReport.reportId || "N/A"}</p>
+            </div>
+            <div className="report-meta-item">
+              <span className="report-heading">Patient ID</span>
+              <p>{generatedReport.patientId || "N/A"}</p>
+            </div>
+            <div className="report-meta-item">
+              <span className="report-heading">Patient Name</span>
+              <p>{generatedReport.patientName || "N/A"}</p>
+            </div>
+            <div className="report-meta-item">
+              <span className="report-heading">Generated At</span>
+              <p>{generatedReport.generatedAt || "N/A"}</p>
+            </div>
+            <div className="report-meta-item">
+              <span className="report-heading">Study</span>
+              <p>{generatedReport.studyName || "N/A"}</p>
+            </div>
+            <div className="report-meta-item">
+              <span className="report-heading">Image File</span>
+              <p>{generatedReport.fileName || result?.fileName || "N/A"}</p>
+            </div>
+          </div>
+          <div className="report-block">
+            <span className="report-heading">Clinical Summary</span>
+            <p className="report-summary">{generatedReport.summary}</p>
+          </div>
+          <div className="report-block">
+            <span className="report-heading">Findings</span>
+            <ul className="report-list">
+              {(generatedReport.findings || []).map((finding, index) => (
+                <li key={`finding-${index}`}>{finding}</li>
+              ))}
+            </ul>
+          </div>
+          <div className="report-block">
+            <span className="report-heading">Impression</span>
+            <p>{generatedReport.impression}</p>
+          </div>
+          <div className="report-block">
+            <span className="report-heading">Recommendations</span>
+            <ul className="report-list">
+              {(generatedReport.recommendations || []).map((recommendation, index) => (
+                <li key={`recommendation-${index}`}>{recommendation}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
 
       <p className="disclaimer">
         <strong>⚕️ Medical Notice:</strong> This is a decision-support tool only. 

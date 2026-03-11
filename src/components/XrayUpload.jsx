@@ -14,7 +14,7 @@ function readFileAsDataUrl(file) {
   });
 }
 
-function XrayUpload({ onAnalysisComplete }) {
+function XrayUpload({ onAnalysisComplete, patientContext }) {
   const [file, setFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState("");
   const [result, setResult] = useState(null);
@@ -60,6 +60,15 @@ function XrayUpload({ onAnalysisComplete }) {
     try {
       const formData = new FormData();
       formData.append("file", file);
+      if (patientContext?.patientId) {
+        formData.append("patientId", patientContext.patientId);
+      }
+      if (patientContext?.patientName) {
+        formData.append("patientName", patientContext.patientName);
+      }
+      if (patientContext?.patientEmail) {
+        formData.append("patientEmail", patientContext.patientEmail);
+      }
 
       const response = await fetch(API_URL, {
         method: "POST",
@@ -72,13 +81,20 @@ function XrayUpload({ onAnalysisComplete }) {
       }
 
       const data = await response.json();
-
       // Handle the response from ML model
       const parsedResult = {
         label: data.prediction || "Unknown",
         confidence: typeof data.confidence === "number" ? data.confidence : null,
         hasFracture: data.has_fracture || false,
-        detections: data.detections || []
+        detections: data.detections || [],
+        fileName: file?.name || "Unknown file",
+        patientId: patientContext?.patientId || "",
+        patientName: patientContext?.patientName || "",
+        patientEmail: patientContext?.patientEmail || "",
+        medicalReport:
+          data.medicalReport && typeof data.medicalReport === "object"
+            ? data.medicalReport
+            : null
       };
 
       setResult(parsedResult);
@@ -101,7 +117,8 @@ function XrayUpload({ onAnalysisComplete }) {
               label: parsedResult.label,
               hasFracture: parsedResult.hasFracture,
               confidence: parsedResult.confidence,
-              detections: parsedResult.detections || []
+              detections: parsedResult.detections || [],
+              medicalReport: parsedResult.medicalReport
             },
             { headers: { "x-auth-token": token } }
           );
@@ -126,7 +143,29 @@ function XrayUpload({ onAnalysisComplete }) {
 
   return (
     <section className="card">
-      <h2>🩻 Upload X-ray</h2>
+      <h2 className="upload-heading">
+        <span className="upload-heading-icon" aria-hidden="true">
+          <svg viewBox="0 0 64 64" className="upload-heading-icon-svg">
+            <defs>
+              <linearGradient id="boneFill" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#f8fafc" />
+                <stop offset="100%" stopColor="#cbd5e1" />
+              </linearGradient>
+            </defs>
+            <circle cx="14" cy="20" r="7" fill="url(#boneFill)" />
+            <circle cx="20" cy="14" r="7" fill="url(#boneFill)" />
+            <circle cx="44" cy="50" r="7" fill="url(#boneFill)" />
+            <circle cx="50" cy="44" r="7" fill="url(#boneFill)" />
+            <rect x="18" y="24" width="28" height="16" rx="8" fill="url(#boneFill)" />
+            <rect x="17" y="23" width="30" height="18" rx="9" fill="none" stroke="#64748b" strokeWidth="2" />
+            <circle cx="14" cy="20" r="7" fill="none" stroke="#64748b" strokeWidth="2" />
+            <circle cx="20" cy="14" r="7" fill="none" stroke="#64748b" strokeWidth="2" />
+            <circle cx="44" cy="50" r="7" fill="none" stroke="#64748b" strokeWidth="2" />
+            <circle cx="50" cy="44" r="7" fill="none" stroke="#64748b" strokeWidth="2" />
+          </svg>
+        </span>
+        <span className="upload-heading-text">Upload X-ray</span>
+      </h2>
       <p className="subtitle">
         Upload a bone X-ray image to check for possible fractures using AI.
       </p>

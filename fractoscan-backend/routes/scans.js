@@ -3,6 +3,7 @@ const auth = require("../middleware/auth");
 const role = require("../middleware/role");
 const User = require("../models/User");
 const Scan = require("../models/Scan");
+const { buildMedicalReport } = require("../utils/medicalReport");
 
 const router = express.Router();
 const MANUAL_STATUSES = ["completed", "needs_followup"];
@@ -16,6 +17,34 @@ router.post("/", auth, role("user"), async (req, res) => {
       return res.status(404).json({ msg: "User not found" });
     }
 
+    const normalizedDetections = Array.isArray(detections)
+      ? detections
+          .map((detection) => ({
+            x1: Number(detection?.x1),
+            y1: Number(detection?.y1),
+            x2: Number(detection?.x2),
+            y2: Number(detection?.y2),
+            confidence: Number(detection?.confidence)
+          }))
+          .filter((detection) =>
+            [detection.x1, detection.y1, detection.x2, detection.y2].every((value) =>
+              Number.isFinite(value)
+            )
+          )
+      : [];
+
+    const generatedMedicalReport = buildMedicalReport({
+      prediction: label || "",
+      hasFracture: Boolean(hasFracture),
+      confidence,
+      detections: normalizedDetections,
+      fileName: fileName || "",
+      analyzedAt: new Date().toISOString(),
+      patientId: user.id,
+      patientName: user.name || "",
+      patientEmail: user.email || ""
+    });
+
     const scan = new Scan({
       patientId: user.id,
       patientName: user.name || "",
@@ -25,21 +54,8 @@ router.post("/", auth, role("user"), async (req, res) => {
       label: label || "",
       hasFracture: Boolean(hasFracture),
       confidence: typeof confidence === "number" ? confidence : null,
-      detections: Array.isArray(detections)
-        ? detections
-            .map((detection) => ({
-              x1: Number(detection?.x1),
-              y1: Number(detection?.y1),
-              x2: Number(detection?.x2),
-              y2: Number(detection?.y2),
-              confidence: Number(detection?.confidence)
-            }))
-            .filter((detection) =>
-              [detection.x1, detection.y1, detection.x2, detection.y2].every((value) =>
-                Number.isFinite(value)
-              )
-            )
-        : [],
+      detections: normalizedDetections,
+      medicalReport: generatedMedicalReport,
       doctorStatus: "pending_review"
     });
 
@@ -53,7 +69,10 @@ router.post("/", auth, role("user"), async (req, res) => {
 
 router.get("/patient/:patientId", auth, role("doctor"), async (req, res) => {
   try {
-    const scans = await Scan.find({ patientId: req.params.patientId })
+    const scans = await Scan.find({
+      patientId: req.params.patientId,
+      reviewedBy: req.user.id
+    })
       .sort({ createdAt: -1 })
       .lean();
     res.json(scans);
@@ -77,12 +96,12 @@ router.get("/doctor/reviewed", auth, role("doctor"), async (req, res) => {
 
 router.get("/doctor/all", auth, role("doctor"), async (req, res) => {
   try {
-    const scans = await Scan.find({})
+    const scans = await Scan.find({ reviewedBy: req.user.id })
       .sort({ createdAt: -1 })
       .lean();
     res.json(scans);
   } catch (err) {
-    console.error("❌ Fetch all scans error:", err.message);
+    console.error("❌ Fetch doctor scans error:", err.message);
     res.status(500).json({ msg: "Server error" });
   }
 });
