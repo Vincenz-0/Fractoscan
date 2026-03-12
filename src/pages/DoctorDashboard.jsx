@@ -7,6 +7,7 @@ import { buildMedicalReport, formatMedicalReportText } from "../utils/medicalRep
 const SCANS_API_URL = "http://127.0.0.1:5001/api/scans";
 const PREDICT_API_URL = "http://localhost:5001/api/predict";
 const MESSAGES_API_URL = "http://127.0.0.1:5001/api/messages";
+const REVIEW_REQUESTS_API_URL = "http://127.0.0.1:5001/api/review-requests";
 
 function getDoctorStatus(scan) {
   if (scan?.doctorStatus) {
@@ -89,6 +90,13 @@ function DoctorDashboard() {
   const [analysisReportGenerated, setAnalysisReportGenerated] = useState(false);
   const [messageConversations, setMessageConversations] = useState([]);
   const [messageConversationsLoading, setMessageConversationsLoading] = useState(false);
+  const [reviewRequests, setReviewRequests] = useState([]);
+  const [reviewRequestsLoading, setReviewRequestsLoading] = useState(false);
+  const [reviewRequestsError, setReviewRequestsError] = useState("");
+  const [activeReviewRequest, setActiveReviewRequest] = useState(null);
+  const [reviewNotesDraft, setReviewNotesDraft] = useState("");
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewSubmitError, setReviewSubmitError] = useState("");
   const [activePatientId, setActivePatientId] = useState("");
   const [activeConversationMessages, setActiveConversationMessages] = useState([]);
   const [activeConversationLoading, setActiveConversationLoading] = useState(false);
@@ -496,6 +504,10 @@ function DoctorDashboard() {
     setAnalysisPreview(null);
     setAnalysisReport(null);
     setAnalysisReportGenerated(false);
+    setActiveReviewRequest(null);
+    setReviewNotesDraft("");
+    setReviewSubmitting(false);
+    setReviewSubmitError("");
   }
 
   function createAnalysisReport() {
@@ -561,6 +573,128 @@ function DoctorDashboard() {
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
+  }
+
+  const fetchReviewRequests = useCallback(async (options = {}) => {
+    if (!options.silent) {
+      setReviewRequestsLoading(true);
+    }
+
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setReviewRequests([]);
+        return;
+      }
+
+      const res = await axios.get(`${REVIEW_REQUESTS_API_URL}/doctor`, {
+        params: { status: "pending_review" },
+        headers: { "x-auth-token": token }
+      });
+
+      const requests = Array.isArray(res.data?.requests) ? res.data.requests : [];
+      setReviewRequests(requests);
+      setReviewRequestsError("");
+    } catch (error) {
+      if (!options.silent) {
+        setReviewRequests([]);
+      }
+      setReviewRequestsError(error?.response?.data?.msg || "Could not load review requests");
+    } finally {
+      if (!options.silent) {
+        setReviewRequestsLoading(false);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchReviewRequests();
+    const interval = setInterval(() => {
+      fetchReviewRequests({ silent: true });
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [fetchReviewRequests]);
+
+  async function handleOpenReviewRequest(requestId) {
+    const query = typeof requestId === "string" ? requestId.trim() : "";
+    if (!query) {
+      return;
+    }
+
+    try {
+      setAnalysisLoading(true);
+      setReviewSubmitError("");
+
+      const token = localStorage.getItem("token");
+      if (!token) {
+        return;
+      }
+
+      const res = await axios.get(`${REVIEW_REQUESTS_API_URL}/${query}`, {
+        headers: { "x-auth-token": token }
+      });
+
+      const request = res.data?.request || null;
+      const scan = res.data?.scan || null;
+      if (!request || !scan) {
+        return;
+      }
+
+      setActiveReviewRequest(request);
+      setReviewNotesDraft("");
+
+      const mergedScan = withMedicalReport(scan);
+      setAnalysisPreview(mergedScan);
+
+      const report = mergedScan?.medicalReport && typeof mergedScan.medicalReport === "object"
+        ? mergedScan.medicalReport
+        : null;
+      if (report) {
+        setAnalysisReport(report);
+        setAnalysisReportGenerated(true);
+      } else {
+        setAnalysisReport(null);
+        setAnalysisReportGenerated(false);
+      }
+    } catch (error) {
+      const msg = error?.response?.data?.msg || "Could not open this review request";
+      setReviewSubmitError(msg);
+      setReviewRequestsError(msg);
+    } finally {
+      setAnalysisLoading(false);
+    }
+  }
+
+  async function handleCompleteReviewRequest() {
+    if (!activeReviewRequest?._id) {
+      return;
+    }
+
+    try {
+      setReviewSubmitting(true);
+      setReviewSubmitError("");
+
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setReviewSubmitError("Not authenticated");
+        return;
+      }
+
+      await axios.post(
+        `${REVIEW_REQUESTS_API_URL}/${activeReviewRequest._id}/complete`,
+        { doctorNotes: reviewNotesDraft },
+        { headers: { "x-auth-token": token } }
+      );
+
+      await fetchReviewRequests({ silent: true });
+      refreshScans();
+      handleCloseAnalysis();
+    } catch (error) {
+      setReviewSubmitError(error?.response?.data?.msg || "Could not complete this review");
+    } finally {
+      setReviewSubmitting(false);
+    }
   }
 
   async function handleSendMessage(e) {
@@ -662,6 +796,50 @@ function DoctorDashboard() {
                 <span className="result-value">{patientReport.lastScan}</span>
               </div>
             </div>
+          )}
+        </section>
+
+        <section className="card review-requests-card">
+          <h2>🛎️ Review Requests</h2>
+          <p className="subtitle">
+            Patients who selected you for review appear here.
+          </p>
+
+          {reviewRequestsError && <p className="nearby-doctors-error">{reviewRequestsError}</p>}
+
+          {reviewRequestsLoading ? (
+            <p className="nearby-doctors-info">Loading review requests...</p>
+          ) : reviewRequests.length === 0 ? (
+            <p className="nearby-doctors-empty">No pending review requests.</p>
+          ) : (
+            <ul className="nearby-doctors-list">
+              {reviewRequests.map((request) => (
+                <li key={request._id} className="nearby-doctor-item">
+                  <div className="nearby-doctor-main">
+                    <p className="nearby-doctor-name">
+                      {request.patientName || request.patientId}
+                    </p>
+                    <p className="nearby-doctor-meta">
+                      {request.scanFileName || "X-ray scan"} · {formatDateTime(request.scanCreatedAt)}
+                    </p>
+                    <p className="nearby-doctor-meta">
+                      {request.scanHasFracture ? "Fracture Detected" : "No Fracture"} ·{" "}
+                      {request.scanLabel || "N/A"}
+                    </p>
+                  </div>
+                  <div className="nearby-doctor-actions">
+                    <button
+                      type="button"
+                      className="btn primary small"
+                      disabled={analysisLoading}
+                      onClick={() => handleOpenReviewRequest(request._id)}
+                    >
+                      Review
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
           )}
         </section>
 
@@ -876,105 +1054,136 @@ function DoctorDashboard() {
                 ✕
               </button>
             </div>
-            {!analysisPreview.imageData ? (
-              <p className="subtitle">No X-ray image available.</p>
-            ) : Array.isArray(analysisPreview.detections) &&
-              analysisPreview.detections.length > 0 ? (
-              <canvas ref={analysisCanvasRef} className="xray-modal-image annotated-canvas" />
-            ) : (
-              <div>
-                <img src={analysisPreview.imageData} alt="Analyzed X-ray" className="xray-modal-image" />
-                <p className="subtitle" style={{ marginTop: "0.75rem" }}>
-                  Bounding box not available for this scan.
-                </p>
+            <div className="analysis-modal-body">
+              {!analysisPreview.imageData ? (
+                <p className="subtitle">No X-ray image available.</p>
+              ) : Array.isArray(analysisPreview.detections) &&
+                analysisPreview.detections.length > 0 ? (
+                <canvas ref={analysisCanvasRef} className="xray-modal-image annotated-canvas" />
+              ) : (
+                <div>
+                  <img src={analysisPreview.imageData} alt="Analyzed X-ray" className="xray-modal-image" />
+                  <p className="subtitle" style={{ marginTop: "0.75rem" }}>
+                    Bounding box not available for this scan.
+                  </p>
+                </div>
+              )}
+              <div className="analysis-grid">
+                <div className="analysis-item">
+                  <span className="analysis-label">AI Result</span>
+                  <span className="analysis-value">{analysisPreview.label || "N/A"}</span>
+                </div>
+                <div className="analysis-item">
+                  <span className="analysis-label">Confidence</span>
+                  <span className="analysis-value">{formatConfidence(analysisPreview.confidence)}</span>
+                </div>
+                <div className="analysis-item">
+                  <span className="analysis-label">Outcome</span>
+                  <span className="analysis-value">
+                    {analysisPreview.hasFracture ? "Fracture Detected" : "No Fracture"}
+                  </span>
+                </div>
+                <div className="analysis-item">
+                  <span className="analysis-label">Scan Time</span>
+                  <span className="analysis-value">{formatDateTime(analysisPreview.createdAt)}</span>
+                </div>
               </div>
-            )}
-            <div className="analysis-grid">
-              <div className="analysis-item">
-                <span className="analysis-label">AI Result</span>
-                <span className="analysis-value">{analysisPreview.label || "N/A"}</span>
-              </div>
-              <div className="analysis-item">
-                <span className="analysis-label">Confidence</span>
-                <span className="analysis-value">{formatConfidence(analysisPreview.confidence)}</span>
-              </div>
-              <div className="analysis-item">
-                <span className="analysis-label">Outcome</span>
-                <span className="analysis-value">
-                  {analysisPreview.hasFracture ? "Fracture Detected" : "No Fracture"}
-                </span>
-              </div>
-              <div className="analysis-item">
-                <span className="analysis-label">Scan Time</span>
-                <span className="analysis-value">{formatDateTime(analysisPreview.createdAt)}</span>
-              </div>
-            </div>
-            <div className="report-gate">
-              <div>
-                <p className="report-gate-title">Medical Report</p>
-                <p className="report-gate-subtitle">
-                  Generate a formal report for this analyzed scan.
-                </p>
-              </div>
-              <div className="report-actions">
-                {!analysisReportGenerated ? (
-                  <button
-                    type="button"
-                    className="btn primary generate-report-btn"
-                    onClick={handleGenerateAnalysisReport}
-                  >
-                    Generate Medical Report
-                  </button>
-                ) : (
-                  <>
-                    <span className="report-ready-pill">Report Generated</span>
+              <div className="report-gate">
+                <div>
+                  <p className="report-gate-title">Medical Report</p>
+                  <p className="report-gate-subtitle">
+                    Generate a formal report for this analyzed scan.
+                  </p>
+                </div>
+                <div className="report-actions">
+                  {!analysisReportGenerated ? (
                     <button
                       type="button"
-                      className="btn secondary small"
-                      onClick={handleDownloadAnalysisReport}
+                      className="btn primary generate-report-btn"
+                      onClick={handleGenerateAnalysisReport}
                     >
-                      Download Report
+                      Generate Medical Report
                     </button>
-                  </>
-                )}
+                  ) : (
+                    <>
+                      <span className="report-ready-pill">Report Generated</span>
+                      <button
+                        type="button"
+                        className="btn secondary small"
+                        onClick={handleDownloadAnalysisReport}
+                      >
+                        Download Report
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
-            </div>
 
-            {analysisReportGenerated && analysisReport && (
-              <div className="analysis-report report-document">
-                <h4>Preliminary Radiology Report</h4>
-                <div className="report-meta-grid">
-                  <div className="report-meta-item">
-                    <span className="report-heading">Report ID</span>
-                    <p>{analysisReport.reportId || "N/A"}</p>
+              {analysisReportGenerated && analysisReport && (
+                <div className="analysis-report report-document">
+                  <h4>Preliminary Radiology Report</h4>
+                  <div className="report-meta-grid">
+                    <div className="report-meta-item">
+                      <span className="report-heading">Report ID</span>
+                      <p>{analysisReport.reportId || "N/A"}</p>
+                    </div>
+                    <div className="report-meta-item">
+                      <span className="report-heading">Patient ID</span>
+                      <p>{analysisReport.patientId || analysisPreview.patientId || "N/A"}</p>
+                    </div>
+                    <div className="report-meta-item">
+                      <span className="report-heading">Patient Name</span>
+                      <p>{analysisReport.patientName || analysisPreview.patientName || "N/A"}</p>
+                    </div>
+                    <div className="report-meta-item">
+                      <span className="report-heading">Generated At</span>
+                      <p>{analysisReport.generatedAt || "N/A"}</p>
+                    </div>
                   </div>
-                  <div className="report-meta-item">
-                    <span className="report-heading">Patient ID</span>
-                    <p>{analysisReport.patientId || analysisPreview.patientId || "N/A"}</p>
-                  </div>
-                  <div className="report-meta-item">
-                    <span className="report-heading">Patient Name</span>
-                    <p>{analysisReport.patientName || analysisPreview.patientName || "N/A"}</p>
-                  </div>
-                  <div className="report-meta-item">
-                    <span className="report-heading">Generated At</span>
-                    <p>{analysisReport.generatedAt || "N/A"}</p>
+                  <p className="report-summary">{analysisReport.summary}</p>
+                  <p>
+                    <strong>Impression:</strong> {analysisReport.impression}
+                  </p>
+                  <div className="report-block">
+                    <span className="report-heading">Recommendations</span>
+                    <ul className="report-list">
+                      {(analysisReport.recommendations || []).map((recommendation, index) => (
+                        <li key={`analysis-recommendation-${index}`}>{recommendation}</li>
+                      ))}
+                    </ul>
                   </div>
                 </div>
-                <p className="report-summary">{analysisReport.summary}</p>
-                <p>
-                  <strong>Impression:</strong> {analysisReport.impression}
-                </p>
-                <div className="report-block">
-                  <span className="report-heading">Recommendations</span>
-                  <ul className="report-list">
-                    {(analysisReport.recommendations || []).map((recommendation, index) => (
-                      <li key={`analysis-recommendation-${index}`}>{recommendation}</li>
-                    ))}
-                  </ul>
+              )}
+
+              {activeReviewRequest && (
+                <div className="doctor-review-panel">
+                  <h4>Doctor Review Notes</h4>
+                  <p className="subtitle">
+                    Share your findings with the patient, then mark this review as done.
+                  </p>
+                  <textarea
+                    className="doctor-review-textarea"
+                    placeholder="Write your review notes..."
+                    value={reviewNotesDraft}
+                    onChange={(e) => setReviewNotesDraft(e.target.value)}
+                    rows={5}
+                  />
+                  {reviewSubmitError && (
+                    <p className="nearby-doctors-error">{reviewSubmitError}</p>
+                  )}
+                  <div className="doctor-review-actions">
+                    <button
+                      type="button"
+                      className="btn primary"
+                      onClick={handleCompleteReviewRequest}
+                      disabled={reviewSubmitting}
+                    >
+                      {reviewSubmitting ? "Sending..." : "Done"}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
       )}

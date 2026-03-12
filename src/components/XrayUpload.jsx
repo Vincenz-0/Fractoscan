@@ -4,6 +4,7 @@ import axios from "axios";
 
 const API_URL = "http://localhost:5001/api/predict"; // Backend proxy to ML server
 const SCANS_API_URL = "http://127.0.0.1:5001/api/scans";
+const REVIEW_REQUESTS_API_URL = "http://127.0.0.1:5001/api/review-requests";
 
 function readFileAsDataUrl(file) {
   return new Promise((resolve, reject) => {
@@ -109,7 +110,7 @@ function XrayUpload({ onAnalysisComplete, patientContext }) {
       try {
         const token = localStorage.getItem("token");
         if (token) {
-          await axios.post(
+          const saveResponse = await axios.post(
             SCANS_API_URL,
             {
               fileName: file?.name || "",
@@ -122,6 +123,23 @@ function XrayUpload({ onAnalysisComplete, patientContext }) {
             },
             { headers: { "x-auth-token": token } }
           );
+
+          const selectedDoctorId =
+            typeof patientContext?.selectedDoctorId === "string"
+              ? patientContext.selectedDoctorId.trim()
+              : "";
+          const savedScanId = saveResponse?.data?._id;
+          if (selectedDoctorId && savedScanId) {
+            try {
+              await axios.post(
+                REVIEW_REQUESTS_API_URL,
+                { doctorId: selectedDoctorId, scanId: savedScanId },
+                { headers: { "x-auth-token": token } }
+              );
+            } catch (requestErr) {
+              console.error("Failed to send review request:", requestErr);
+            }
+          }
         }
       } catch (saveErr) {
         console.error("Failed to save scan:", saveErr);

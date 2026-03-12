@@ -6,6 +6,7 @@ import XrayUpload from "../components/XrayUpload";
 const SCAN_HISTORY_STORAGE_KEY = "fractoscan_scan_history_v1";
 const NEARBY_DOCTORS_API_URL = "http://127.0.0.1:5001/api/nearby-doctors";
 const MESSAGES_API_URL = "http://127.0.0.1:5001/api/messages";
+const REVIEW_REQUESTS_API_URL = "http://127.0.0.1:5001/api/review-requests";
 
 async function fetchNearbyDoctors(lat, lon) {
   const response = await fetch(NEARBY_DOCTORS_API_URL, {
@@ -80,15 +81,6 @@ function normalizeConfidenceToPercent(confidence) {
   return null;
 }
 
-function isSameLocalDay(isoDate, date) {
-  const scanDate = new Date(isoDate);
-  return (
-    scanDate.getFullYear() === date.getFullYear() &&
-    scanDate.getMonth() === date.getMonth() &&
-    scanDate.getDate() === date.getDate()
-  );
-}
-
 function formatDateTime(isoDate) {
   const date = new Date(isoDate);
   if (Number.isNaN(date.getTime())) {
@@ -120,6 +112,12 @@ function Dashboard() {
   const [conversationSending, setConversationSending] = useState(false);
   const [conversationText, setConversationText] = useState("");
   const [conversationError, setConversationError] = useState("");
+  const [reviewUpdates, setReviewUpdates] = useState([]);
+  const [reviewUpdatesLoading, setReviewUpdatesLoading] = useState(false);
+  const [reviewUpdatesError, setReviewUpdatesError] = useState("");
+  const [reviewRequestSending, setReviewRequestSending] = useState(false);
+  const [reviewRequestStatus, setReviewRequestStatus] = useState("");
+  const [reviewRequestError, setReviewRequestError] = useState("");
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [profileForm, setProfileForm] = useState({
     name: "",
@@ -197,8 +195,7 @@ function Dashboard() {
   );
 
   const statsData = useMemo(() => {
-    const today = new Date();
-    const todayScans = scanHistory.filter((scan) => isSameLocalDay(scan.createdAt, today)).length;
+    const totalScans = scanHistory.length;
     const fracturePositives = scanHistory.filter((scan) => scan.hasFracture).length;
     const confidenceValues = scanHistory
       .map((scan) => scan.confidence)
@@ -213,7 +210,7 @@ function Dashboard() {
       : 0;
 
     return {
-      todayScans,
+      totalScans,
       fracturePositives,
       avgConfidence: Math.round(avgConfidence),
       highConfidenceRate: Math.round(highConfidenceRate)
@@ -221,6 +218,50 @@ function Dashboard() {
   }, [scanHistory]);
 
   const selectedDoctorId = getDoctorId(selectedDoctor);
+
+  const fetchReviewUpdates = useCallback(async (options = {}) => {
+    if (!options.silent) {
+      setReviewUpdatesLoading(true);
+    }
+
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setReviewUpdates([]);
+        return;
+      }
+
+      const response = await fetch(`${REVIEW_REQUESTS_API_URL}/patient?status=reviewed`, {
+        headers: { "x-auth-token": token }
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.msg || "Failed to fetch review updates");
+      }
+
+      setReviewUpdates(Array.isArray(payload?.requests) ? payload.requests : []);
+      setReviewUpdatesError("");
+    } catch (error) {
+      if (!options.silent) {
+        setReviewUpdates([]);
+      }
+      setReviewUpdatesError(error?.message || "Could not load review updates");
+    } finally {
+      if (!options.silent) {
+        setReviewUpdatesLoading(false);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchReviewUpdates();
+    const interval = setInterval(() => {
+      fetchReviewUpdates({ silent: true });
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [fetchReviewUpdates]);
 
   const fetchConversationByDoctor = useCallback(async (doctorId, options = {}) => {
     const normalizedDoctorId = typeof doctorId === "string" ? doctorId.trim() : "";
@@ -298,6 +339,47 @@ function Dashboard() {
     });
     setConversationText("");
     setConversationError("");
+    setReviewRequestStatus("");
+    setReviewRequestError("");
+
+    (async () => {
+      try {
+        const token = localStorage.getItem("token");
+        if (!token) {
+          return;
+        }
+
+        setReviewRequestSending(true);
+        const response = await fetch(`${REVIEW_REQUESTS_API_URL}/latest`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-auth-token": token
+          },
+          body: JSON.stringify({ doctorId })
+        });
+
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          const msg = payload?.msg || "Failed to send review request";
+          const normalizedMsg = msg.toLowerCase();
+          if (normalizedMsg.includes("no scans") || normalizedMsg.includes("no pending scans")) {
+            setReviewRequestStatus("Doctor selected. Upload an X-ray to send a scan for review.");
+            setReviewRequestError("");
+            return;
+          }
+          throw new Error(msg);
+        }
+
+        setReviewRequestStatus("Review request sent for your latest scan.");
+        setReviewRequestError("");
+      } catch (error) {
+        setReviewRequestStatus("");
+        setReviewRequestError(error?.message || "Could not send review request");
+      } finally {
+        setReviewRequestSending(false);
+      }
+    })();
   }
 
   async function handleSendConversationMessage(e) {
@@ -459,9 +541,9 @@ function Dashboard() {
       <main className="dashboard-main">
         <section className="stats-row">
           <div className="stat-card">
-            <h3>📊 Today's Scans</h3>
-            <p className="stat-number">{statsData.todayScans}</p>
-            <p className="stat-caption">Analysis completed</p>
+            <h3>📊 Total Scans</h3>
+            <p className="stat-number">{statsData.totalScans}</p>
+            <p className="stat-caption">All-time analyses</p>
           </div>
           <div className="stat-card">
             <h3>⚠️ Fractures Found</h3>
@@ -478,6 +560,46 @@ function Dashboard() {
             <p className="stat-number">{statsData.highConfidenceRate}%</p>
             <p className="stat-caption">Scans at 80%+ confidence</p>
           </div>
+        </section>
+
+        <section className="card review-updates-card">
+          <h2>🔔 Review Updates</h2>
+          <p className="subtitle">
+            Notifications appear here after a doctor completes your scan review.
+          </p>
+
+          {reviewUpdatesError && <p className="nearby-doctors-error">{reviewUpdatesError}</p>}
+
+          {reviewUpdatesLoading ? (
+            <p className="nearby-doctors-info">Loading review updates...</p>
+          ) : reviewUpdates.length === 0 ? (
+            <p className="nearby-doctors-empty">No doctor reviews yet.</p>
+          ) : (
+            <ul className="review-updates-list">
+              {reviewUpdates.map((update) => (
+                <li key={update._id} className="review-update-item">
+                  <div className="review-update-head">
+                    <p className="review-update-title">
+                      {(update.doctorName || "").trim()
+                        ? `Dr. ${update.doctorName} reviewed your scan`
+                        : "Doctor reviewed your scan"}
+                    </p>
+                    <p className="review-update-meta">
+                      {formatDateTime(update.reviewedAt || update.createdAt)}
+                    </p>
+                  </div>
+                  <p className="review-update-meta">
+                    {update.scanFileName ? update.scanFileName : "X-ray scan"} ·{" "}
+                    {update.scanHasFracture ? "Fracture Detected" : "No Fracture"} ·{" "}
+                    {update.scanLabel || "N/A"}
+                  </p>
+                  <p className={`review-update-notes ${update.doctorNotes ? "" : "empty"}`.trim()}>
+                    {update.doctorNotes ? update.doctorNotes : "No notes provided."}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
 
         <section className="card nearby-doctors-card">
@@ -551,6 +673,18 @@ function Dashboard() {
             </ul>
           )}
 
+          {reviewRequestSending && (
+            <p className="nearby-doctors-info">Sending review request...</p>
+          )}
+
+          {reviewRequestStatus && (
+            <p className="nearby-doctors-info">{reviewRequestStatus}</p>
+          )}
+
+          {reviewRequestError && (
+            <p className="nearby-doctors-error">{reviewRequestError}</p>
+          )}
+
           {selectedDoctorId && (
             <div className="doctor-chat-panel">
               <div className="doctor-chat-head">
@@ -609,7 +743,8 @@ function Dashboard() {
               patientContext={{
                 patientId: user?._id || "",
                 patientName: user?.name || "",
-                patientEmail: user?.email || ""
+                patientEmail: user?.email || "",
+                selectedDoctorId
               }}
             />
           </div>

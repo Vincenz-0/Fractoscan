@@ -32,6 +32,7 @@ app.use("/api/scans", require("./routes/scans"));
 app.use("/api/nearby-doctors", require("./routes/nearbyDoctors"));
 app.use("/api/doctors", require("./routes/doctors"));
 app.use("/api/messages", require("./routes/messages"));
+app.use("/api/review-requests", require("./routes/reviewRequests"));
 
 app.get("/", (req, res) => {
   console.log("STEP 3: ROOT HIT");

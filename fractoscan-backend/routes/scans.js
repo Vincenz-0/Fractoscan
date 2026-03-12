@@ -69,10 +69,7 @@ router.post("/", auth, role("user"), async (req, res) => {
 
 router.get("/patient/:patientId", auth, role("doctor"), async (req, res) => {
   try {
-    const scans = await Scan.find({
-      patientId: req.params.patientId,
-      reviewedBy: req.user.id
-    })
+    const scans = await Scan.find({ patientId: req.params.patientId })
       .sort({ createdAt: -1 })
       .lean();
     res.json(scans);

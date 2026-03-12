@@ -50,6 +50,8 @@ const ScanSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
   reviewedBy: { type: String, index: true },
   reviewedAt: Date,
+  doctorNotes: { type: String, default: "", trim: true, maxlength: 4000 },
+  doctorNotesAt: Date,
   doctorStatus: {
     type: String,
     enum: ["pending_review", "reviewed", "completed", "needs_followup"],
