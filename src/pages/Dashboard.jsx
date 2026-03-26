@@ -115,6 +115,7 @@ function Dashboard() {
   const [reviewUpdates, setReviewUpdates] = useState([]);
   const [reviewUpdatesLoading, setReviewUpdatesLoading] = useState(false);
   const [reviewUpdatesError, setReviewUpdatesError] = useState("");
+  const [pendingReviewCount, setPendingReviewCount] = useState(0);
   const [reviewRequestSending, setReviewRequestSending] = useState(false);
   const [reviewRequestStatus, setReviewRequestStatus] = useState("");
   const [reviewRequestError, setReviewRequestError] = useState("");
@@ -197,23 +198,10 @@ function Dashboard() {
   const statsData = useMemo(() => {
     const totalScans = scanHistory.length;
     const fracturePositives = scanHistory.filter((scan) => scan.hasFracture).length;
-    const confidenceValues = scanHistory
-      .map((scan) => scan.confidence)
-      .filter((value) => typeof value === "number" && !Number.isNaN(value));
-
-    const avgConfidence = confidenceValues.length
-      ? confidenceValues.reduce((sum, value) => sum + value, 0) / confidenceValues.length
-      : 0;
-
-    const highConfidenceRate = confidenceValues.length
-      ? (confidenceValues.filter((value) => value >= 80).length / confidenceValues.length) * 100
-      : 0;
 
     return {
       totalScans,
-      fracturePositives,
-      avgConfidence: Math.round(avgConfidence),
-      highConfidenceRate: Math.round(highConfidenceRate)
+      fracturePositives
     };
   }, [scanHistory]);
 
@@ -228,10 +216,11 @@ function Dashboard() {
       const token = localStorage.getItem("token");
       if (!token) {
         setReviewUpdates([]);
+        setPendingReviewCount(0);
         return;
       }
 
-      const response = await fetch(`${REVIEW_REQUESTS_API_URL}/patient?status=reviewed`, {
+      const response = await fetch(`${REVIEW_REQUESTS_API_URL}/patient`, {
         headers: { "x-auth-token": token }
       });
 
@@ -240,11 +229,14 @@ function Dashboard() {
         throw new Error(payload?.msg || "Failed to fetch review updates");
       }
 
-      setReviewUpdates(Array.isArray(payload?.requests) ? payload.requests : []);
+      const requests = Array.isArray(payload?.requests) ? payload.requests : [];
+      setReviewUpdates(requests.filter((request) => request?.status === "reviewed"));
+      setPendingReviewCount(requests.filter((request) => request?.status === "pending_review").length);
       setReviewUpdatesError("");
     } catch (error) {
       if (!options.silent) {
         setReviewUpdates([]);
+        setPendingReviewCount(0);
       }
       setReviewUpdatesError(error?.message || "Could not load review updates");
     } finally {
@@ -551,14 +543,9 @@ function Dashboard() {
             <p className="stat-caption">Positive detections</p>
           </div>
           <div className="stat-card">
-            <h3>🎯 Avg. Confidence</h3>
-            <p className="stat-number">{statsData.avgConfidence}%</p>
-            <p className="stat-caption">Across all completed scans</p>
-          </div>
-          <div className="stat-card">
-            <h3>✅ High Confidence</h3>
-            <p className="stat-number">{statsData.highConfidenceRate}%</p>
-            <p className="stat-caption">Scans at 80%+ confidence</p>
+            <h3>⏳ Pending Reviews</h3>
+            <p className="stat-number">{pendingReviewCount}</p>
+            <p className="stat-caption">Awaiting doctor feedback</p>
           </div>
         </section>
 

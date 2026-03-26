@@ -6,17 +6,13 @@ function ResultCard({ result, previewUrl, inline = false }) {
   const [reportGenerated, setReportGenerated] = useState(false);
   const [generatedReport, setGeneratedReport] = useState(null);
 
-  const isFractured =
-    result.label && result.label.toLowerCase().includes("fract");
-
   const confidencePercent =
     typeof result.confidence === "number"
       ? (result.confidence * 100).toFixed(1)
       : null;
 
-  const hasDetections = result.detections && result.detections.length > 0;
-  const hasFracture =
-    typeof result?.hasFracture === "boolean" ? result.hasFracture : isFractured;
+  const hasDetections = Array.isArray(result?.detections) && result.detections.length > 0;
+  const hasFracture = hasDetections;
 
   useEffect(() => {
     setReportGenerated(false);
@@ -128,8 +124,8 @@ function ResultCard({ result, previewUrl, inline = false }) {
   }, [previewUrl, hasDetections, result.detections]);
 
   const rootClassName = inline
-    ? `result-inline ${isFractured ? "fractured" : "normal"}`
-    : `result-card ${isFractured ? "fractured" : "normal"}`;
+    ? `result-inline ${hasFracture ? "fractured" : "normal"}`
+    : `result-card ${hasFracture ? "fractured" : "normal"}`;
 
   return (
     <div className={rootClassName}>
@@ -138,8 +134,8 @@ function ResultCard({ result, previewUrl, inline = false }) {
       <div className="result-content">
         <div className="result-item">
           <span className="result-label">Prediction:</span>
-          <span className={`result-value ${isFractured ? "text-fractured" : "text-normal"}`}>
-            {isFractured ? "⚠️ Fracture Detected" : "✅ No Fracture Detected"}
+          <span className={`result-value ${hasFracture ? "text-fractured" : "text-normal"}`}>
+            {hasFracture ? "⚠️ Fracture Detected" : "✅ No Fracture Detected"}
           </span>
         </div>
 
@@ -150,7 +146,7 @@ function ResultCard({ result, previewUrl, inline = false }) {
               <span className="result-confidence-value">{confidencePercent}%</span>
               <div className="confidence-bar">
                 <div
-                  className={`confidence-fill ${isFractured ? "fill-high" : "fill-medium"}`}
+                  className={`confidence-fill ${hasFracture ? "fill-high" : "fill-medium"}`}
                   style={{ width: `${confidencePercent}%` }}
                 />
               </div>
@@ -179,31 +175,8 @@ function ResultCard({ result, previewUrl, inline = false }) {
           </div>
         )}
 
-        {/* Fallback when fracture detected but specific location not identified */}
-        {previewUrl && isFractured && !hasDetections && (
-          <div className="result-item">
-            <div className="no-detection-message">
-              <h4>⚠️ Fracture Detected - Location Analysis</h4>
-              <p>
-                A fracture has been detected in this X-ray (confidence: {confidencePercent}%), 
-                but the AI could not pinpoint the exact location. 
-                The fracture may be subtle or at the image edges.
-              </p>
-            </div>
-            <span className="result-label">📊 Original X-ray Image:</span>
-            <div className="fracture-warning-overlay">
-              <img
-                src={previewUrl}
-                alt="X-ray with detected fracture"
-                className="preview-image"
-                style={{ marginTop: "0" }}
-              />
-            </div>
-          </div>
-        )}
-
         {/* Show image for normal cases */}
-        {previewUrl && !isFractured && (
+        {previewUrl && !hasFracture && (
           <div className="result-item">
             <span className="result-label">📊 Analyzed X-ray Image:</span>
             <img

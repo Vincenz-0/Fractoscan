@@ -6,37 +6,41 @@ import Dashboard from "./pages/Dashboard";
 import DoctorDashboard from "./pages/DoctorDashboard";
 import ProtectedRoute from "./components/ProtectedRoute";
 import RoleBasedRoute from "./components/RoleBasedRoute";
+import ThemeToggle from "./components/ThemeToggle";
 
 function App() {
   return (
-    <Routes>
-      {/* ✅ Landing page FIRST */}
-      <Route path="/" element={<LandingPage />} />
+    <>
+      <ThemeToggle />
+      <Routes>
+        {/* ✅ Landing page FIRST */}
+        <Route path="/" element={<LandingPage />} />
 
-      {/* Auth pages */}
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/register" element={<RegisterPage />} />
+        {/* Auth pages */}
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
 
-      {/* Protected User Dashboard */}
-      <Route
-        path="/dashboard"
-        element={
-          <RoleBasedRoute allowedRoles={["user"]}>
-            <Dashboard />
-          </RoleBasedRoute>
-        }
-      />
+        {/* Protected User Dashboard */}
+        <Route
+          path="/dashboard"
+          element={
+            <RoleBasedRoute allowedRoles={["user"]}>
+              <Dashboard />
+            </RoleBasedRoute>
+          }
+        />
 
-      {/* Protected Doctor Dashboard */}
-      <Route
-        path="/doctor-dashboard"
-        element={
-          <RoleBasedRoute allowedRoles={["doctor", "admin"]}>
-            <DoctorDashboard />
-          </RoleBasedRoute>
-        }
-      />
-    </Routes>
+        {/* Protected Doctor Dashboard */}
+        <Route
+          path="/doctor-dashboard"
+          element={
+            <RoleBasedRoute allowedRoles={["doctor", "admin"]}>
+              <DoctorDashboard />
+            </RoleBasedRoute>
+          }
+        />
+      </Routes>
+    </>
   );
 }
 
