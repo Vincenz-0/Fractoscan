@@ -3,11 +3,7 @@ import { useAuth } from "../AuthContext";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { buildMedicalReport, formatMedicalReportText } from "../utils/medicalReport";
-
-const SCANS_API_URL = "http://127.0.0.1:5001/api/scans";
-const PREDICT_API_URL = "http://localhost:5001/api/predict";
-const MESSAGES_API_URL = "http://127.0.0.1:5001/api/messages";
-const REVIEW_REQUESTS_API_URL = "http://127.0.0.1:5001/api/review-requests";
+import { MESSAGES_API_URL, PREDICT_API_URL, REVIEW_REQUESTS_API_URL, SCANS_API_URL } from "../config/api";
 
 function getDoctorStatus(scan) {
   if (scan?.doctorStatus) {

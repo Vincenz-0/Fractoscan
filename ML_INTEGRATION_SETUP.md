@@ -47,7 +47,7 @@ cd fractoscan-ml
 python app.py
 ```
 
-The ML server will start on `http://127.0.0.1:5000`
+The ML server defaults to port `5000` (configurable via `PORT`) and binds to all interfaces (`HOST=0.0.0.0`).
 
 ### 4. Start the Backend Server
 
@@ -58,7 +58,7 @@ cd fractoscan-backend
 npm start
 ```
 
-The backend will run on `http://127.0.0.1:5001`
+The backend defaults to port `5001` (configurable via `PORT`) and binds to all interfaces (`HOST=0.0.0.0`).
 
 ### 5. Start the Frontend
 
@@ -103,7 +103,7 @@ npm run dev
 ## Frontend Integration
 
 The `XrayUpload` component now:
-1. Sends X-ray images to `http://localhost:5001/api/predict`
+1. Sends X-ray images to `${VITE_API_ORIGIN}/api/predict` (defaults to `http://127.0.0.1:5001`)
 2. Receives prediction results with confidence scores
 3. Displays results using the enhanced `ResultCard` component
 4. Shows confidence visualizations with progress bars
@@ -118,12 +118,17 @@ The `XrayUpload` component now:
 
 ## Environment Variables
 
-**Backend (.env)**
-- DATABASE_URL: MongoDB connection string
-- Other auth-related variables
+**Frontend (.env)**
+- `VITE_API_ORIGIN` (backend origin; defaults to `http://127.0.0.1:5001`)
 
-**ML Server (app.py)**
-- No environment variables required (runs on fixed port 5000)
+**Backend (`fractoscan-backend/.env`)**
+- `MONGO_URI`: MongoDB connection string
+- `JWT_SECRET`: JWT signing secret
+- `ML_PREDICT_URL`: full ML `/predict` URL (defaults to `http://127.0.0.1:5000/predict`)
+
+**ML Server (`fractoscan-ml/.env`, optional)**
+- `PORT` (default `5000`)
+- `HOST` (default `0.0.0.0`)
 
 ## Troubleshooting
 

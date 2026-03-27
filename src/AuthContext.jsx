@@ -1,9 +1,8 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import axios from "axios";
+import { AUTH_API_URL } from "./config/api";
 
 const AuthContext = createContext(null);
-
-const API_BASE = "http://127.0.0.1:5001/api/auth";
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -18,7 +17,7 @@ export function AuthProvider({ children }) {
     }
 
     axios
-      .get(`${API_BASE}/me`, {
+      .get(`${AUTH_API_URL}/me`, {
         headers: { "x-auth-token": token }
       })
       .then(res => setUser(res.data))
@@ -29,7 +28,7 @@ export function AuthProvider({ children }) {
   // LOGIN
   async function login(email, password) {
     try {
-      const res = await axios.post(`${API_BASE}/login`, {
+      const res = await axios.post(`${AUTH_API_URL}/login`, {
         email,
         password
       });
@@ -58,7 +57,7 @@ export function AuthProvider({ children }) {
   // REGISTER
   async function register(name, email, password,role) {
     try {
-      const res = await axios.post(`${API_BASE}/register`, {
+      const res = await axios.post(`${AUTH_API_URL}/register`, {
         name,
         email,
         password,
@@ -107,7 +106,7 @@ export function AuthProvider({ children }) {
         payload.password = password.trim();
       }
 
-      const res = await axios.put(`${API_BASE}/me`, payload, {
+      const res = await axios.put(`${AUTH_API_URL}/me`, payload, {
         headers: { "x-auth-token": token }
       });
 

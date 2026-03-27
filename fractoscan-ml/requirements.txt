@@ -1,8 +1,8 @@
 flask
 flask-cors
+gunicorn
 ultralytics
 opencv-python
 pillow
-
 
 

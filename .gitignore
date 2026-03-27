@@ -25,3 +25,11 @@ dist-ssr
 
 #env
 .env
+
+# Python
+.venv
+__pycache__/
+*.pyc
+
+# ML uploads
+fractoscan-ml/uploads/

@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: fractoscan-ml
+    env: python
+    rootDir: fractoscan-ml
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 1 --timeout 120
+
+  - type: web
+    name: fractoscan-backend
+    env: node
+    rootDir: fractoscan-backend
+    plan: free
+    buildCommand: npm ci
+    startCommand: node server.js
+    envVars:
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: ML_PREDICT_URL
+        sync: false
+

@@ -2,11 +2,9 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "../AuthContext";
 import { useNavigate } from "react-router-dom";
 import XrayUpload from "../components/XrayUpload";
+import { MESSAGES_API_URL, NEARBY_DOCTORS_API_URL, REVIEW_REQUESTS_API_URL } from "../config/api";
 
 const SCAN_HISTORY_STORAGE_KEY = "fractoscan_scan_history_v1";
-const NEARBY_DOCTORS_API_URL = "http://127.0.0.1:5001/api/nearby-doctors";
-const MESSAGES_API_URL = "http://127.0.0.1:5001/api/messages";
-const REVIEW_REQUESTS_API_URL = "http://127.0.0.1:5001/api/review-requests";
 
 async function fetchNearbyDoctors(lat, lon) {
   const response = await fetch(NEARBY_DOCTORS_API_URL, {
@@ -650,7 +648,14 @@ function Dashboard() {
                       </a>
                     )}
                     {doctor.email && (
-                      <a className="btn secondary small" href={`mailto:${doctor.email}`}>
+                      <a
+                        className="btn secondary small"
+                        href={`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(
+                          String(doctor.email).trim(),
+                        )}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
                         Email
                       </a>
                     )}

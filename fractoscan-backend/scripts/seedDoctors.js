@@ -12,7 +12,7 @@ const doctors = [
     role: "doctor",
     email: "arun.kumar@caliortho.in",
     password: "password",
-    phone: "+91-98950-11001",
+    phone: "7994164536",
     latitude: 11.2588,
     longitude: 75.7804,
     city: "Calicut"
@@ -25,7 +25,7 @@ const doctors = [
     role: "doctor",
     email: "meera.nair@bmhcalicut.in",
     password: "password",
-    phone: "+91-98950-11002",
+    phone: "7994164536",
     latitude: 11.2747,
     longitude: 75.776,
     city: "Calicut"
@@ -38,7 +38,7 @@ const doctors = [
     role: "doctor",
     email: "rahul.menon@mimscalicut.in",
     password: "password",
-    phone: "+91-98950-11003",
+    phone: "7994164536",
     latitude: 11.2895,
     longitude: 75.7845,
     city: "Calicut"
@@ -51,7 +51,7 @@ const doctors = [
     role: "doctor",
     email: "anil.varma@astermims.in",
     password: "password",
-    phone: "+91-98950-11004",
+    phone: "7994164536",
     latitude: 11.2921,
     longitude: 75.7873,
     city: "Calicut"
@@ -64,7 +64,7 @@ const doctors = [
     role: "doctor",
     email: "suresh.nair@nationalcalicut.in",
     password: "password",
-    phone: "+91-98950-11005",
+    phone: "7994164536",
     latitude: 11.2605,
     longitude: 75.78,
     city: "Calicut"

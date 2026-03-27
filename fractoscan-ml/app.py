@@ -94,5 +94,8 @@ def predict():
 
 
 if __name__ == "__main__":
-    print("[ML Server] Starting on http://127.0.0.1:5000")
-    app.run(host="127.0.0.1", port=5000, debug=True)
+    port = int(os.getenv("PORT", "5000"))
+    host = os.getenv("HOST", "0.0.0.0")
+    debug = os.getenv("FLASK_DEBUG", "0") == "1"
+    print(f"[ML Server] Starting on http://{host}:{port}")
+    app.run(host=host, port=port, debug=debug)

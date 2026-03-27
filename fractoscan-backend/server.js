@@ -14,6 +14,10 @@ const multer = require("multer");
 const { buildMedicalReport } = require("./utils/medicalReport");
 
 const app = express();
+const ML_PREDICT_URL =
+  typeof process.env.ML_PREDICT_URL === "string" && process.env.ML_PREDICT_URL.trim()
+    ? process.env.ML_PREDICT_URL.trim()
+    : "http://127.0.0.1:5000/predict";
 
 // Setup multer for file uploads
 const upload = multer({ storage: multer.memoryStorage() });
@@ -58,10 +62,10 @@ app.post("/api/predict", upload.single("file"), async (req, res) => {
       contentType: req.file.mimetype
     });
 
-    console.log("[Backend] Forwarding to ML server at http://127.0.0.1:5000/predict");
+    console.log(`[Backend] Forwarding to ML server at ${ML_PREDICT_URL}`);
     
     // Forward request to ML server with timeout
-    const mlResponse = await axios.post("http://127.0.0.1:5000/predict", formData, {
+    const mlResponse = await axios.post(ML_PREDICT_URL, formData, {
       headers: formData.getHeaders(),
       timeout: 60000
     });
@@ -92,7 +96,7 @@ app.post("/api/predict", upload.single("file"), async (req, res) => {
     if (error.code === "ECONNREFUSED") {
       return res.status(503).json({ 
         error: "ML Server not running",
-        details: "Cannot connect to ML server on http://127.0.0.1:5000. Please start the ML server."
+        details: "Cannot connect to ML server. Please verify that the ML service is running and ML_PREDICT_URL is configured."
       });
     }
     
@@ -103,6 +107,9 @@ app.post("/api/predict", upload.single("file"), async (req, res) => {
   }
 });
 
-app.listen(5001, "127.0.0.1", () => {
-  console.log("STEP 3: LISTENING on port 5001");
+const PORT = Number(process.env.PORT) || 5001;
+const HOST = typeof process.env.HOST === "string" && process.env.HOST.trim() ? process.env.HOST.trim() : "0.0.0.0";
+
+app.listen(PORT, HOST, () => {
+  console.log(`STEP 3: LISTENING on port ${PORT}`);
 });

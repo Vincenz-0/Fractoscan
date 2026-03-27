@@ -1,10 +1,7 @@
 import React, { useState } from "react";
 import ResultCard from "./ResultCard";
 import axios from "axios";
-
-const API_URL = "http://localhost:5001/api/predict"; // Backend proxy to ML server
-const SCANS_API_URL = "http://127.0.0.1:5001/api/scans";
-const REVIEW_REQUESTS_API_URL = "http://127.0.0.1:5001/api/review-requests";
+import { PREDICT_API_URL, REVIEW_REQUESTS_API_URL, SCANS_API_URL } from "../config/api";
 
 function readFileAsDataUrl(file) {
   return new Promise((resolve, reject) => {
@@ -71,7 +68,7 @@ function XrayUpload({ onAnalysisComplete, patientContext }) {
         formData.append("patientEmail", patientContext.patientEmail);
       }
 
-      const response = await fetch(API_URL, {
+      const response = await fetch(PREDICT_API_URL, {
         method: "POST",
         body: formData,
       });
