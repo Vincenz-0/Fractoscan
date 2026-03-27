@@ -12,6 +12,21 @@ function readFileAsDataUrl(file) {
   });
 }
 
+async function readErrorPayload(response) {
+  try {
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      const data = await response.json();
+      return data && typeof data === "object" ? data : { error: String(data || "") };
+    }
+
+    const text = await response.text();
+    return { error: text || response.statusText || "Request failed" };
+  } catch {
+    return { error: response.statusText || "Request failed" };
+  }
+}
+
 function XrayUpload({ onAnalysisComplete, patientContext }) {
   const [file, setFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState("");
@@ -74,8 +89,14 @@ function XrayUpload({ onAnalysisComplete, patientContext }) {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to process X-ray");
+        const errorData = await readErrorPayload(response);
+        const errorText =
+          errorData && typeof errorData === "object"
+            ? typeof errorData.details === "string" && errorData.details.trim()
+              ? `${errorData.error || "Request failed"}: ${errorData.details.trim()}`
+              : errorData.error || "Failed to process X-ray"
+            : "Failed to process X-ray";
+        throw new Error(errorText);
       }
 
       const data = await response.json();

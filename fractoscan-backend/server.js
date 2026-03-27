@@ -67,7 +67,7 @@ app.post("/api/predict", upload.single("file"), async (req, res) => {
     // Forward request to ML server with timeout
     const mlResponse = await axios.post(ML_PREDICT_URL, formData, {
       headers: formData.getHeaders(),
-      timeout: 60000
+      timeout: Number(process.env.ML_TIMEOUT_MS) > 0 ? Number(process.env.ML_TIMEOUT_MS) : 180000
     });
 
     const medicalReport = buildMedicalReport({
@@ -90,8 +90,13 @@ app.post("/api/predict", upload.single("file"), async (req, res) => {
     console.log("[Backend] ML response received:", responsePayload);
     res.json(responsePayload);
   } catch (error) {
-    console.error("[Backend] Prediction error:", error.message);
-    console.error("[Backend] Error code:", error.code);
+    const errorMessage = error?.message || "Unknown error";
+    console.error("[Backend] Prediction error:", errorMessage);
+    console.error("[Backend] Error code:", error?.code);
+    console.error("[Backend] Error status:", error?.response?.status);
+    if (error?.response?.data) {
+      console.error("[Backend] Error response:", error.response.data);
+    }
     
     if (error.code === "ECONNREFUSED") {
       return res.status(503).json({ 
@@ -99,10 +104,25 @@ app.post("/api/predict", upload.single("file"), async (req, res) => {
         details: "Cannot connect to ML server. Please verify that the ML service is running and ML_PREDICT_URL is configured."
       });
     }
+
+    const mlStatus = typeof error?.response?.status === "number" ? error.response.status : null;
+    const mlData = error?.response?.data;
+    let mlDetails = "";
+    if (typeof mlData === "string" && mlData.trim()) {
+      mlDetails = mlData.trim();
+    } else if (mlData && typeof mlData === "object" && typeof mlData.error === "string") {
+      mlDetails = mlData.error.trim();
+    } else if (mlData != null) {
+      try {
+        mlDetails = JSON.stringify(mlData);
+      } catch {
+        mlDetails = "";
+      }
+    }
     
     res.status(500).json({ 
       error: "Failed to process prediction",
-      details: error.message 
+      details: mlStatus ? `ML ${mlStatus}${mlDetails ? `: ${mlDetails}` : ""}` : errorMessage
     });
   }
 });
