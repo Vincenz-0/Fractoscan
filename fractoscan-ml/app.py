@@ -123,12 +123,22 @@ def predict():
         if not file_bytes:
             return jsonify({"error": "Empty image"}), 400
 
-        pil_image = Image.open(io.BytesIO(file_bytes)).convert("RGB")
+        pil_image = Image.open(io.BytesIO(file_bytes))
         original_width, original_height = pil_image.size
-        original_array = np.array(pil_image)
+
+        max_dim = int(os.getenv("MAX_IMAGE_DIM", "3072"))
+        downscale = 1.0
+        if max_dim > 0 and max(original_width, original_height) > max_dim:
+            downscale = max_dim / float(max(original_width, original_height))
+            new_w = max(1, int(round(original_width * downscale)))
+            new_h = max(1, int(round(original_height * downscale)))
+            pil_image = pil_image.resize((new_w, new_h), Image.BILINEAR)
+
+        pil_image = pil_image.convert("RGB")
+        processed_array = np.array(pil_image)
 
         padded, ratio, pad_left, pad_top = letterbox(
-            original_array, new_shape=(model_height, model_width)
+            processed_array, new_shape=(model_height, model_width)
         )
 
         input_tensor = padded.astype(np.float32) / 255.0
@@ -185,6 +195,12 @@ def predict():
                 by1 = (by1 - pad_top) / ratio
                 bx2 = (bx2 - pad_left) / ratio
                 by2 = (by2 - pad_top) / ratio
+
+                if downscale and downscale != 1.0:
+                    bx1 = bx1 / downscale
+                    by1 = by1 / downscale
+                    bx2 = bx2 / downscale
+                    by2 = by2 / downscale
 
                 bx1 = float(max(0.0, min(bx1, original_width)))
                 by1 = float(max(0.0, min(by1, original_height)))

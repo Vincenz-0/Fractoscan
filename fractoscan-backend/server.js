@@ -19,6 +19,97 @@ const ML_PREDICT_URL =
     ? process.env.ML_PREDICT_URL.trim()
     : "http://127.0.0.1:5000/predict";
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function getMlBaseUrl(predictUrl) {
+  try {
+    const url = new URL(predictUrl);
+    url.pathname = "/";
+    url.search = "";
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return "";
+  }
+}
+
+const ML_BASE_URL = getMlBaseUrl(ML_PREDICT_URL);
+
+function isRetryableMlError(error) {
+  const status = error?.response?.status;
+  if (typeof status === "number" && [502, 503, 504].includes(status)) return true;
+
+  const code = error?.code;
+  return typeof code === "string" && ["ECONNRESET", "ETIMEDOUT", "ECONNABORTED"].includes(code);
+}
+
+async function waitForMlWarmup() {
+  if (!ML_BASE_URL) return false;
+
+  const maxMs = Number(process.env.ML_WARMUP_MAX_MS) > 0 ? Number(process.env.ML_WARMUP_MAX_MS) : 60000;
+  const intervalMs =
+    Number(process.env.ML_WARMUP_INTERVAL_MS) > 0 ? Number(process.env.ML_WARMUP_INTERVAL_MS) : 4000;
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < maxMs) {
+    try {
+      const resp = await axios.get(ML_BASE_URL, { timeout: 10000 });
+      if (resp && typeof resp.status === "number" && resp.status >= 200 && resp.status < 500) {
+        console.log("[Backend] ML warmup ok:", resp.status);
+        return true;
+      }
+    } catch (warmErr) {
+      const warmStatus = warmErr?.response?.status;
+      console.warn("[Backend] ML warmup retry:", warmStatus || warmErr?.code || warmErr?.message);
+    }
+
+    await sleep(intervalMs);
+  }
+
+  return false;
+}
+
+async function callMlPredict(file) {
+  const timeout = Number(process.env.ML_TIMEOUT_MS) > 0 ? Number(process.env.ML_TIMEOUT_MS) : 180000;
+  const maxAttempts = Number(process.env.ML_RETRY_ATTEMPTS) > 0 ? Number(process.env.ML_RETRY_ATTEMPTS) : 2;
+
+  let lastError;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const formData = new FormData();
+    formData.append("file", file.buffer, {
+      filename: file.originalname,
+      contentType: file.mimetype
+    });
+
+    try {
+      if (attempt > 1) {
+        console.log(`[Backend] Retrying ML request (${attempt}/${maxAttempts})`);
+      }
+
+      return await axios.post(ML_PREDICT_URL, formData, {
+        headers: formData.getHeaders(),
+        timeout
+      });
+    } catch (err) {
+      lastError = err;
+      if (!isRetryableMlError(err) || attempt === maxAttempts) {
+        break;
+      }
+
+      console.warn(
+        "[Backend] ML gateway error. Waiting for ML to wake up before retrying:",
+        err?.response?.status || err?.code || err?.message
+      );
+      await waitForMlWarmup();
+      await sleep(2000);
+    }
+  }
+
+  throw lastError;
+}
+
 // Setup multer for file uploads
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -56,19 +147,9 @@ app.post("/api/predict", upload.single("file"), async (req, res) => {
     console.log("[Backend] File received:", req.file.originalname, "Size:", req.file.size);
 
     // Create FormData to send to ML server
-    const formData = new FormData();
-    formData.append("file", req.file.buffer, {
-      filename: req.file.originalname,
-      contentType: req.file.mimetype
-    });
-
     console.log(`[Backend] Forwarding to ML server at ${ML_PREDICT_URL}`);
     
-    // Forward request to ML server with timeout
-    const mlResponse = await axios.post(ML_PREDICT_URL, formData, {
-      headers: formData.getHeaders(),
-      timeout: Number(process.env.ML_TIMEOUT_MS) > 0 ? Number(process.env.ML_TIMEOUT_MS) : 180000
-    });
+    const mlResponse = await callMlPredict(req.file);
 
     const medicalReport = buildMedicalReport({
       prediction: mlResponse?.data?.prediction,
