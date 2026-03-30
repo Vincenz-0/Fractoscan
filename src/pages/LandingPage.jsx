@@ -6,6 +6,7 @@ function LandingPage() {
   const navigate = useNavigate();
   const [scrolled, setScrolled] = useState(false);
   const [activeSection, setActiveSection] = useState("top");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Handle scroll events for navbar styling and active section detection
   useEffect(() => {
@@ -38,6 +39,28 @@ function LandingPage() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  useEffect(() => {
+    if (!mobileMenuOpen) {
+      return undefined;
+    }
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setMobileMenuOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [mobileMenuOpen]);
+
   function handleTryItClick() {
     navigate("/login");
   }
@@ -57,6 +80,7 @@ function LandingPage() {
           <img 
             src="assets/logo.png"
             className="logo-img"
+            alt="FractoScan"
           />
           
         </div>
@@ -118,7 +142,100 @@ function LandingPage() {
             Login
           </button>
         </nav>
+
+        <button
+          type="button"
+          className="landing-nav-toggle"
+          aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+          aria-expanded={mobileMenuOpen}
+          onClick={() => setMobileMenuOpen((open) => !open)}
+        >
+          <span className="landing-nav-toggle-icon" aria-hidden="true">
+            {mobileMenuOpen ? "✕" : "☰"}
+          </span>
+        </button>
       </header>
+
+      {mobileMenuOpen && (
+        <div
+          className="landing-mobile-backdrop"
+          role="presentation"
+          onClick={() => setMobileMenuOpen(false)}
+        >
+          <nav
+            className="landing-mobile-menu"
+            aria-label="Mobile navigation"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <a
+              href="#about"
+              className={activeSection === "about" ? "active" : ""}
+              onClick={(e) => {
+                e.preventDefault();
+                setMobileMenuOpen(false);
+                window.setTimeout(() => scrollToSection("about"), 0);
+              }}
+            >
+              About
+            </a>
+            <a
+              href="#features"
+              className={activeSection === "features" ? "active" : ""}
+              onClick={(e) => {
+                e.preventDefault();
+                setMobileMenuOpen(false);
+                window.setTimeout(() => scrollToSection("features"), 0);
+              }}
+            >
+              Features
+            </a>
+            <a
+              href="#workflow"
+              className={activeSection === "workflow" ? "active" : ""}
+              onClick={(e) => {
+                e.preventDefault();
+                setMobileMenuOpen(false);
+                window.setTimeout(() => scrollToSection("workflow"), 0);
+              }}
+            >
+              How it works
+            </a>
+            <a
+              href="#testimonials"
+              className={activeSection === "testimonials" ? "active" : ""}
+              onClick={(e) => {
+                e.preventDefault();
+                setMobileMenuOpen(false);
+                window.setTimeout(() => scrollToSection("testimonials"), 0);
+              }}
+            >
+              Stories
+            </a>
+            <a
+              href="#faq"
+              className={activeSection === "faq" ? "active" : ""}
+              onClick={(e) => {
+                e.preventDefault();
+                setMobileMenuOpen(false);
+                window.setTimeout(() => scrollToSection("faq"), 0);
+              }}
+            >
+              FAQ
+            </a>
+
+            <button
+              type="button"
+              className="btn primary"
+              onClick={() => {
+                setMobileMenuOpen(false);
+                navigate("/login");
+              }}
+            >
+              Login
+            </button>
+          </nav>
+        </div>
+      )}
 
       {/* Hero section with updated copy for new audience */}
       <section className="hero-section" id="top">
