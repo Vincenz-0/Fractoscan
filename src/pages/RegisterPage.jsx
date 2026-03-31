@@ -49,14 +49,9 @@ function RegisterPage() {
       }
     } catch (err) {
       setError("Server error. Please try again later.");
-    } finally {
+  } finally {
       setIsLoading(false);
     }
-  }
-
-  // ❌ Disabled until real Google OAuth is implemented
-  function handleGoogleSignUp() {
-    setError("Google sign-up not implemented yet.");
   }
 
   return (
@@ -150,14 +145,6 @@ function RegisterPage() {
             {isLoading ? "Registering..." : "Register"}
           </button>
         </form>
-
-        <div className="auth-separator">
-          <span>OR</span>
-        </div>
-
-        <button className="btn google-btn" onClick={handleGoogleSignUp}>
-          Continue with Google
-        </button>
 
         <div className="auth-footer">
           <p>

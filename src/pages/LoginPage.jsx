@@ -38,13 +38,9 @@ function LoginPage() {
       }
     } catch (err) {
       setError("Server error. Please try again.");
-    } finally {
+  } finally {
       setIsLoading(false);
     }
-  }
-
-  function handleGoogleLogin() {
-    setError("Google login not implemented yet.");
   }
 
   return (
@@ -101,14 +97,6 @@ function LoginPage() {
             {isLoading ? "Signing In..." : "Login"}
           </button>
         </form>
-
-        <div className="auth-separator">
-          <span>OR</span>
-        </div>
-
-        <button className="btn google-btn" onClick={handleGoogleLogin}>
-          Continue with Google
-        </button>
 
         <div className="auth-footer">
           <p>
